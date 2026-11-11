@@ -12,7 +12,9 @@ except ImportError:
 
 import zxingcpp  # pip wheel with the native reader bundled: no brew/system install needed
 
-FORMATS = (zxingcpp.BarcodeFormat.EAN13, zxingcpp.BarcodeFormat.UPCA, zxingcpp.BarcodeFormat.EAN8)
+# No `formats=` argument: its type changed between zxing-cpp versions (tuple vs flags) and broke
+# on 3.x. Read everything and keep retail codes: all digits, 8/12/13 long.
+RETAIL_LENGTHS = {8, 12, 13}
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".heic", ".webp"}
 
 
@@ -31,8 +33,10 @@ def codes_in(path):
     found = Counter()
     with Image.open(path) as img:
         for im in _variants(img):
-            for sym in zxingcpp.read_barcodes(im, formats=FORMATS):
-                code = sym.text
+            for sym in zxingcpp.read_barcodes(im):
+                code = sym.text.strip()
+                if not (code.isdigit() and len(code) in RETAIL_LENGTHS):
+                    continue
                 if len(code) == 12:      # UPC-A -> 13-digit form, matches what's on Products
                     code = "0" + code
                 found[code] += 1
