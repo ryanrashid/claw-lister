@@ -2,7 +2,7 @@
 import json
 from datetime import date
 
-from .config import INTRO_LINE, PLATFORM_MARKUP
+from .config import HOUSE_SPECIFICS, INTRO_LINE, PLATFORM_MARKUP, TITLE_SUFFIX
 from .ebay import barcode_kind
 
 
@@ -28,11 +28,17 @@ def products_row(rec, barcode):
 
 def render(folder_name, photos, barcode, ebay, rec):
     specifics = {k: v for k, v in (rec.get("item_specifics") or {}).items()
-                 if k not in ("UPC", "EAN", "Condition")}
+                 if k not in ("UPC", "EAN", "Condition") and k not in HOUSE_SPECIFICS}
     if barcode:   # one barcode field: UPC for US codes, EAN for JAN/EAN-13
         specifics["UPC" if barcode.startswith("0") else "EAN"] = barcode[1:] if barcode.startswith("0") else barcode
 
-    chosen = ebay.get("category")
+    cats = ebay.get("categories") or {}
+    chosen = cats.get(rec.get("category")) or cats.get("Figure")
+    if chosen:   # house values, only for fields that exist in this category
+        allowed = {a["name"] for k in ("required", "recommended") for a in chosen["aspects"][k]}
+        for k, v in HOUSE_SPECIFICS.items():
+            if k in allowed or not allowed:
+                specifics[k] = v
     missing = []
     if chosen:
         names = {k.lower() for k in specifics}
@@ -50,6 +56,8 @@ def render(folder_name, photos, barcode, ebay, rec):
         warn.append("> ⚠ No active eBay listings found — fields come from the photos only.")
 
     title = rec.get("ebay_title", "")
+    if title and len(title) + len(TITLE_SUFFIX) <= 80:
+        title += TITLE_SUFFIX
     md = [f"# {rec.get('name') or folder_name}", "",
           f"_Draft generated {date.today():%m/%d/%y} from folder `{folder_name}` · photos: {', '.join(photos)}_", ""]
     md += warn + ([""] if warn else [])

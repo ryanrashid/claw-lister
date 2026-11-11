@@ -19,8 +19,9 @@ def main():
         digits = "".join(c for c in arg if c.isdigit())
         info = ebay.gather(code=digits) if digits == arg.strip() else ebay.gather(q=arg)
         print(f"\n=== {arg}   ({info['n_listings']} listings, {info['n_us']} from US sellers, specifics from {info['n_detailed']})")
-        c = info['category']
-        print(f"  category: {c.get('path')} (id {c.get('id')}); required specifics: " + ', '.join(a['name'] for a in c['aspects']['required']))
+        for kind, c in info["categories"].items():
+            print(f"  {kind} category: {c['path']} (id {c['id'] or '?'}); required: "
+                  + (", ".join(a["name"] for a in c["aspects"]["required"]) or "none"))
         for t in info["titles"][:5]:
             print(f"  - {t}")
         print("  item specifics (value: listings):")

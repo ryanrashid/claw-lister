@@ -41,6 +41,9 @@ Reply with ONLY a JSON object:
 
 def clean_up(photo_names, barcode, ebay, name_rule, cwd):
     """Turn noisy eBay data + photos into one consistent product record and eBay fields."""
+    from .config import HOUSE_SPECIFICS, TITLE_SUFFIX
+    house_keys = ", ".join(HOUSE_SPECIFICS)
+    title_max = 80 - len(TITLE_SUFFIX)
     prompt = f"""You are preparing an eBay listing for a new, unopened Japanese prize figure or plush.
 First use the Read tool to look at these photos in the current folder: {', '.join(photo_names[:MAX_PHOTOS])}.
 
@@ -48,15 +51,16 @@ Barcode on the box: {barcode or "none found"}
 Data from active eBay listings found for this item (titles, and item-specific values with how many listings gave each):
 {json.dumps({k: ebay[k] for k in ("n_listings", "titles", "aspect_votes")}, ensure_ascii=False, indent=1)}
 
-The listing goes in this eBay category; these are the item specifics eBay requires/recommends there
-("allowed" = eBay only accepts those values):
-{json.dumps(ebay.get("category", {}), ensure_ascii=False, indent=1)}
+eBay category by item type, with the item specifics eBay requires/recommends there
+("allowed" = eBay only accepts those values). Use the one matching your "category":
+{json.dumps(ebay.get("categories", {}), ensure_ascii=False, indent=1)}
 
 Rules:
 - The photos are the ground truth. If the eBay listings describe a different item or variant, say so in "match_note" and set "matches_photos" to false.
 - Product name format: {name_rule}. Franchise = the series it comes from (e.g. "The Legend of Zelda: Tears of the Kingdom"), Line = the prize line (e.g. "FIGURIZMα", "Desktop Cute", "BiCute Bunnies"), Variant whenever this item differs from the standard release of that figure: a color/outfit version visible in the photos or named by the [barcode match] listings (e.g. "Black Ver."), or an edition named on the box (e.g. "Reissue"). Titles marked [barcode match] have this exact barcode and outrank the rest. Don't repeat a word already in an earlier part.
-- ebay_title: max 80 characters, buyer search terms first (franchise, character, line, maker, "Figure"/"Plush"), then "New" / "Japan" / "Authentic" if room. No emojis, no all caps words except brand names.
-- item_specifics: use exactly the aspect names of that category; fill every required one and as many recommended ones as the evidence supports; for "allowed" aspects use one of the listed values. Values must come from the photos/box or at least 2 listings. Don't include UPC/EAN (added automatically) or Condition.
+- ebay_title: max {title_max} characters (a suffix gets added after it), buyer search terms first (franchise, character, line, maker, "Figure"/"Plush"), then "New" / "Japan" / "Authentic" if room. No emojis, no all caps words except brand names. Keep product-line names as printed, including symbols (write "FIGURIZMα", not "FIGURIZM Alpha").
+- Don't flag Country of Origin / manufacture location in "uncertain"; the owner sets it.
+- item_specifics: use exactly the aspect names of the category for this item type; fill every required one and as many recommended ones as the evidence supports; for "allowed" aspects use one of the listed values. Values must come from the photos/box or at least 2 listings. Don't include UPC/EAN, Condition, or these fields the owner sets himself: {house_keys}.
 - intro_hook: a short phrase that completes "This figurine is ___ so get it here now!" using only facts from the box or listings (e.g. "a 2025 FuRyu prize exclusive, one version only"). Empty if nothing true and interesting.
 - box_facts: other useful facts read from the packaging (manufacture date, made in, sculptor, distributor sticker), one per item.
 - Put anything you are unsure about in "uncertain" so a human checks it.

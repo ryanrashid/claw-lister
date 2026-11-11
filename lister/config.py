@@ -29,7 +29,17 @@ INTRO_LINE = ("Brand new, unopened, won from a claw machine at Round 1 SF. "
 NAME_RULE = "{Franchise} {Line} {Character} [{Variant}] Figure   (or ... Plush)"
 PLATFORM_MARKUP = {"eBay": 0.0, "Depop": 0.0, "Mercari": 1.0, "FB Marketplace": 1.0}
 
-# eBay US category used for every listing (verified by name at runtime).
-# Figures & Statues under Collectibles > Animation Art & Merchandise > Animation Merchandise.
-EBAY_CATEGORY_ID = "261055"
-EBAY_CATEGORY_NAME = "Figures & Statues"
+# eBay US category per item type: (id, full path). Leave an id empty to have it looked up
+# by path (Taxonomy API). The path is also how a configured id gets double-checked.
+EBAY_CATEGORIES = {
+    "Figure": ("261055", "Collectibles > Animation Art & Merchandise > Animation Merchandise > Figures & Statues"),
+    "Plush": ("", "Toys & Hobbies > Stuffed Animals > Other Stuffed Animals"),
+}
+
+# Things you always put, whatever the photos/listings say. These override Claude and eBay data.
+# Add more here as you remember them (aspect name -> value).
+HOUSE_SPECIFICS = {
+    "Country of Origin": "Japan",
+    "Country/Region of Manufacture": "Japan",   # eBay's name for the same field in some categories
+}
+TITLE_SUFFIX = " (US Seller)"   # appended to every eBay title when it fits in 80 characters

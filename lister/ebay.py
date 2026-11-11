@@ -121,32 +121,46 @@ def prices(items):
 TREE = "/commerce/taxonomy/v1/category_tree/0"
 
 
-def category_info(cat_id):
-    """{'id','name','path'} for a US category id (Taxonomy API), or {} if not found."""
-    node = get(f"{TREE}/get_category_subtree", category_id=cat_id).get("categorySubtreeNode", {})
-    cat = node.get("category", {})
-    if not cat:
-        return {}
-    anc = [a["categoryName"] for a in reversed(node.get("categoryTreeNodeAncestors", []))]
-    return {"id": cat["categoryId"], "name": cat["categoryName"],
-            "path": " > ".join(anc + [cat["categoryName"]])}
+def _path_of_suggestion(sg):
+    anc = [x["categoryName"] for x in reversed(sg.get("categoryTreeNodeAncestors", []))]
+    return " > ".join(anc + [sg["category"]["categoryName"]])
+
+
+def resolve_category(cat_id, path):
+    """Find/verify a US category by its full path. Returns (id, note)."""
+    leaf = path.split(" > ")[-1]
+    parent = path.split(" > ")[-2] if " > " in path else ""
+    for q in (f"{parent} {leaf}", leaf, path.replace(" > ", " ")):
+        for sg in get(f"{TREE}/get_category_suggestions", q=q).get("categorySuggestions", []):
+            if _path_of_suggestion(sg).lower() == path.lower():
+                found = sg["category"]["categoryId"]
+                if cat_id and found != cat_id:
+                    return found, f"configured id {cat_id} is wrong; '{path}' is {found}"
+                return found, ""
+    # not found via suggestions: trust a configured id if its leaf name matches
+    if cat_id:
+        node = get(f"{TREE}/get_category_subtree", category_id=cat_id).get("categorySubtreeNode", {})
+        name = node.get("category", {}).get("categoryName", "")
+        if name.lower() == leaf.lower():
+            return cat_id, ""
+        return cat_id, f"couldn't verify id {cat_id} (eBay calls it '{name}')"
+    return "", f"couldn't find '{path}' on eBay; set its id in lister/config.py"
 
 
 _cat_cache = {}
 
 
-def house_category():
-    """The fixed category from config, with eBay's required/recommended specifics for it."""
-    from .config import EBAY_CATEGORY_ID, EBAY_CATEGORY_NAME
-    if "c" not in _cat_cache:
-        info = category_info(EBAY_CATEGORY_ID)
-        if info and info["name"] != EBAY_CATEGORY_NAME:
-            print(f"  ! category {EBAY_CATEGORY_ID} is '{info['path']}', not '{EBAY_CATEGORY_NAME}'. "
-                  "Fix EBAY_CATEGORY_ID in lister/config.py.")
-        info = info or {"id": EBAY_CATEGORY_ID, "name": EBAY_CATEGORY_NAME, "path": EBAY_CATEGORY_NAME}
-        info["aspects"] = category_aspects(EBAY_CATEGORY_ID)
-        _cat_cache["c"] = info
-    return _cat_cache["c"]
+def house_categories():
+    """{'Figure': {...}, 'Plush': {...}}: id, path, and eBay's required/recommended specifics."""
+    from .config import EBAY_CATEGORIES
+    if not _cat_cache:
+        for kind, (cid, path) in EBAY_CATEGORIES.items():
+            cid, note = resolve_category(cid, path)
+            if note:
+                print(f"  ! {kind} category: {note}")
+            _cat_cache[kind] = {"id": cid, "path": path,
+                                "aspects": category_aspects(cid) if cid else {"required": [], "recommended": []}}
+    return _cat_cache
 
 
 def category_aspects(cat_id):
@@ -179,7 +193,7 @@ def gather(code=None, q=None):
         "titles": [("[barcode match] " if it["_via"] == "gtin" else "") + it["title"]
                    for it in sorted(items, key=lambda it: it["_via"] != "gtin")[:15]],
         "aspect_votes": {k: dict(v.most_common(4)) for k, v in votes.items()},
-        "category": house_category(),
+        "categories": house_categories(),
         "epid": next((d.get("epid") for d in dets if d.get("epid")), ""),
         "prices": prices(items),
     }
