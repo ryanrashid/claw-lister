@@ -28,3 +28,8 @@ INTRO_LINE = ("Brand new, unopened, won from a claw machine at Round 1 SF. "
               "This figurine is [release date/rarity] so get it here now!")
 NAME_RULE = "{Franchise} {Line} {Character} [{Variant}] Figure   (or ... Plush)"
 PLATFORM_MARKUP = {"eBay": 0.0, "Depop": 0.0, "Mercari": 1.0, "FB Marketplace": 1.0}
+
+# eBay US category used for every listing (verified by name at runtime).
+# Figures & Statues under Collectibles > Animation Art & Merchandise > Animation Merchandise.
+EBAY_CATEGORY_ID = "261055"
+EBAY_CATEGORY_NAME = "Figures & Statues"

@@ -32,8 +32,7 @@ def render(folder_name, photos, barcode, ebay, rec):
     if barcode:   # one barcode field: UPC for US codes, EAN for JAN/EAN-13
         specifics["UPC" if barcode.startswith("0") else "EAN"] = barcode[1:] if barcode.startswith("0") else barcode
 
-    cands = ebay.get("category_candidates") or []
-    chosen = next((c for c in cands if str(c["id"]) == str(rec.get("ebay_category_id"))), cands[0] if cands else None)
+    chosen = ebay.get("category")
     missing = []
     if chosen:
         names = {k.lower() for k in specifics}
@@ -56,9 +55,7 @@ def render(folder_name, photos, barcode, ebay, rec):
     md += warn + ([""] if warn else [])
     md += ["## eBay title", "", f"`{title}`  ({len(title)}/80)", "",
            "## Category", "",
-           (f"{chosen['path']} (id {chosen['id']})" if chosen else "— (no suggestion; pick in eBay)"), ""]
-    if len(cands) > 1:
-        md += ["Other suggestions: " + "; ".join(f"{c['path']} ({c['id']})" for c in cands if c is not chosen), ""]
+           (f"{chosen['path']} (id {chosen['id']})" if chosen else "—"), ""]
     md += ["## Item specifics", "", "| Field | Value |", "|---|---|", "| Condition | New |"]
     md += [f"| {k} | {v} |" for k, v in specifics.items()]
     md += [f"| {m} | **TODO (required)** |" for m in missing]

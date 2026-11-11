@@ -121,15 +121,32 @@ def prices(items):
 TREE = "/commerce/taxonomy/v1/category_tree/0"
 
 
-def category_candidates(query, n=3):
-    """eBay US category suggestions for a title-like query: [{id, path}]."""
-    res = get(f"{TREE}/get_category_suggestions", q=query[:350])
-    out = []
-    for s in res.get("categorySuggestions", [])[:n]:
-        anc = [a["categoryName"] for a in reversed(s.get("categoryTreeNodeAncestors", []))]
-        out.append({"id": s["category"]["categoryId"],
-                    "path": " > ".join(anc + [s["category"]["categoryName"]])})
-    return out
+def category_info(cat_id):
+    """{'id','name','path'} for a US category id (Taxonomy API), or {} if not found."""
+    node = get(f"{TREE}/get_category_subtree", category_id=cat_id).get("categorySubtreeNode", {})
+    cat = node.get("category", {})
+    if not cat:
+        return {}
+    anc = [a["categoryName"] for a in reversed(node.get("categoryTreeNodeAncestors", []))]
+    return {"id": cat["categoryId"], "name": cat["categoryName"],
+            "path": " > ".join(anc + [cat["categoryName"]])}
+
+
+_cat_cache = {}
+
+
+def house_category():
+    """The fixed category from config, with eBay's required/recommended specifics for it."""
+    from .config import EBAY_CATEGORY_ID, EBAY_CATEGORY_NAME
+    if "c" not in _cat_cache:
+        info = category_info(EBAY_CATEGORY_ID)
+        if info and info["name"] != EBAY_CATEGORY_NAME:
+            print(f"  ! category {EBAY_CATEGORY_ID} is '{info['path']}', not '{EBAY_CATEGORY_NAME}'. "
+                  "Fix EBAY_CATEGORY_ID in lister/config.py.")
+        info = info or {"id": EBAY_CATEGORY_ID, "name": EBAY_CATEGORY_NAME, "path": EBAY_CATEGORY_NAME}
+        info["aspects"] = category_aspects(EBAY_CATEGORY_ID)
+        _cat_cache["c"] = info
+    return _cat_cache["c"]
 
 
 def category_aspects(cat_id):
@@ -154,10 +171,6 @@ def gather(code=None, q=None):
     items = search(code=code, q=q)
     dets = details(items) if items else []
     votes = vote_aspects(dets)
-    gtin_titles = [it["title"] for it in items if it["_via"] == "gtin"]
-    cats = category_candidates((gtin_titles or [it["title"] for it in items] or [q or ""])[0]) if (items or q) else []
-    for c in cats:
-        c["aspects"] = category_aspects(c["id"])
     return {
         "query": code or q,
         "n_listings": len(items),
@@ -166,7 +179,7 @@ def gather(code=None, q=None):
         "titles": [("[barcode match] " if it["_via"] == "gtin" else "") + it["title"]
                    for it in sorted(items, key=lambda it: it["_via"] != "gtin")[:15]],
         "aspect_votes": {k: dict(v.most_common(4)) for k, v in votes.items()},
-        "category_candidates": cats,
+        "category": house_category(),
         "epid": next((d.get("epid") for d in dets if d.get("epid")), ""),
         "prices": prices(items),
     }
