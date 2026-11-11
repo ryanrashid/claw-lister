@@ -10,11 +10,12 @@ MAX_PHOTOS = 6   # more photos = slower and uses more of your Pro limit
 
 
 def ask_json(prompt, cwd):
-    if not shutil.which("claude"):
-        sys.exit("The `claude` CLI isn't installed or not on PATH (npm i -g @anthropic-ai/claude-code, then run `claude` once to log in).")
+    exe = os.environ.get("CLAUDE_BIN") or "claude"
+    if not shutil.which(exe):
+        sys.exit(f"Can't find the Claude CLI ({exe}). Install it (see README) or set CLAUDE_BIN in .env.")
     env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
     proc = subprocess.run(
-        ["claude", "-p", prompt, "--output-format", "json", "--allowedTools", "Read"],
+        [exe, "-p", prompt, "--output-format", "json", "--allowedTools", "Read"],
         cwd=cwd, env=env, capture_output=True, text=True, timeout=TIMEOUT)
     if proc.returncode != 0:
         raise RuntimeError(f"claude -p failed ({proc.returncode}): {proc.stderr[:500]}")

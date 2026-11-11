@@ -10,9 +10,9 @@ try:  # iPhone .heic support if pillow-heif is installed
 except ImportError:
     pass
 
-from pyzbar.pyzbar import ZBarSymbol, decode
+import zxingcpp  # pip wheel with the native reader bundled: no brew/system install needed
 
-SYMBOLS = [ZBarSymbol.EAN13, ZBarSymbol.UPCA, ZBarSymbol.EAN8]
+FORMATS = (zxingcpp.BarcodeFormat.EAN13, zxingcpp.BarcodeFormat.UPCA, zxingcpp.BarcodeFormat.EAN8)
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".heic", ".webp"}
 
 
@@ -31,8 +31,8 @@ def codes_in(path):
     found = Counter()
     with Image.open(path) as img:
         for im in _variants(img):
-            for sym in decode(im, symbols=SYMBOLS):
-                code = sym.data.decode()
+            for sym in zxingcpp.read_barcodes(im, formats=FORMATS):
+                code = sym.text
                 if len(code) == 12:      # UPC-A -> 13-digit form, matches what's on Products
                     code = "0" + code
                 found[code] += 1

@@ -13,17 +13,28 @@ Photos of a claw-machine prize in, a draft listing out.
 
 Not built yet: publishing the draft to eBay (Inventory API), crosslist copy for Mercari/Depop/FB.
 
-## Setup (each computer)
+## Setup (each computer, nothing installed globally)
 
 ```bash
-git clone <this repo> && cd claw-lister
-cp .env.example .env            # then fill in the eBay Production App ID + Cert ID
-pip3 install -r requirements.txt
-brew install zbar               # macOS. Windows: nothing extra, pyzbar ships the DLL
-npm i -g @anthropic-ai/claude-code && claude   # log in once with your Claude account
+git clone https://github.com/ryanrashid/claw-lister && cd claw-lister
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt    # zxing-cpp + pillow, inside .venv only
+cp .env.example .env               # fill in the eBay Production App ID + Cert ID
 ```
 
-Claude runs through the `claude` CLI on your Pro plan. Don't set `ANTHROPIC_API_KEY`
+Run the scripts with the venv active (or call `.venv/bin/python list.py` directly).
+
+**Claude CLI.** If `claude` already works in your terminal, nothing to do. Otherwise install it
+inside the project instead of globally, log in once, and point `.env` at it:
+
+```bash
+npm install @anthropic-ai/claude-code      # creates ./node_modules (gitignored)
+./node_modules/.bin/claude                 # log in, then exit
+echo "CLAUDE_BIN=$PWD/node_modules/.bin/claude" >> .env
+```
+
+Claude runs on your Pro plan through that CLI. Don't set `ANTHROPIC_API_KEY`
 (the scripts strip it anyway) or it would bill an API key instead.
 
 ## Use

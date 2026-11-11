@@ -4,3 +4,7 @@ __pycache__/
 inbox/
 done/
 .DS_Store
+.venv/
+node_modules/
+package.json
+package-lock.json
