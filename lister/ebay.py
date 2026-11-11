@@ -117,12 +117,47 @@ def prices(items):
     return out
 
 
+# ---------- categories (Taxonomy API, US tree = 0) ----------
+TREE = "/commerce/taxonomy/v1/category_tree/0"
+
+
+def category_candidates(query, n=3):
+    """eBay US category suggestions for a title-like query: [{id, path}]."""
+    res = get(f"{TREE}/get_category_suggestions", q=query[:350])
+    out = []
+    for s in res.get("categorySuggestions", [])[:n]:
+        anc = [a["categoryName"] for a in reversed(s.get("categoryTreeNodeAncestors", []))]
+        out.append({"id": s["category"]["categoryId"],
+                    "path": " > ".join(anc + [s["category"]["categoryName"]])})
+    return out
+
+
+def category_aspects(cat_id):
+    """Item specifics eBay wants for a category: required + recommended, with allowed values
+    where eBay only accepts its own list."""
+    res = get(f"{TREE}/get_item_aspects_for_category", category_id=cat_id)
+    req, rec = [], []
+    for a in res.get("aspects", []):
+        c = a.get("aspectConstraint", {})
+        if not (c.get("aspectRequired") or c.get("aspectUsage") == "RECOMMENDED"):
+            continue
+        entry = {"name": a["localizedAspectName"]}
+        vals = [v["localizedValue"] for v in a.get("aspectValues", [])]
+        if c.get("aspectMode") == "SELECTION_ONLY" and vals:
+            entry["allowed"] = vals[:25]
+        (req if c.get("aspectRequired") else rec).append(entry)
+    return {"required": req, "recommended": rec}
+
+
 def gather(code=None, q=None):
     """Everything the cleanup step needs about one product."""
     items = search(code=code, q=q)
     dets = details(items) if items else []
     votes = vote_aspects(dets)
-    cat_ids = Counter(d.get("categoryId") for d in dets if d.get("categoryId"))
+    gtin_titles = [it["title"] for it in items if it["_via"] == "gtin"]
+    cats = category_candidates((gtin_titles or [it["title"] for it in items] or [q or ""])[0]) if (items or q) else []
+    for c in cats:
+        c["aspects"] = category_aspects(c["id"])
     return {
         "query": code or q,
         "n_listings": len(items),
@@ -131,8 +166,7 @@ def gather(code=None, q=None):
         "titles": [("[barcode match] " if it["_via"] == "gtin" else "") + it["title"]
                    for it in sorted(items, key=lambda it: it["_via"] != "gtin")[:15]],
         "aspect_votes": {k: dict(v.most_common(4)) for k, v in votes.items()},
-        "ebay_category_id": cat_ids.most_common(1)[0][0] if cat_ids else "",
-        "ebay_category_path": next((d.get("categoryPath") for d in dets if d.get("categoryPath")), ""),
+        "category_candidates": cats,
         "epid": next((d.get("epid") for d in dets if d.get("epid")), ""),
         "prices": prices(items),
     }
