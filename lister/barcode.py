@@ -19,14 +19,17 @@ IMAGE_EXT = {".jpg", ".jpeg", ".png", ".heic", ".webp"}
 
 
 def _variants(img):
+    """Sizes to try. Barcodes in ~1000px photos are too small to read as-is; 2x upscale fixes it.
+    zxing already tries rotations itself."""
     img = ImageOps.exif_transpose(img).convert("L")
-    for max_side in (2000, 1200, None):
-        im = img
-        if max_side and max(im.size) > max_side:
-            im = im.copy()
-            im.thumbnail((max_side, max_side))
-        for angle in (0, 90):
-            yield im.rotate(angle, expand=True) if angle else im
+    side = max(img.size)
+    if side > 3000:
+        big = img.copy()
+        big.thumbnail((2400, 2400))
+        yield big
+    yield img
+    if side < 2500:
+        yield img.resize((img.width * 2, img.height * 2), Image.LANCZOS)
 
 
 def codes_in(path):

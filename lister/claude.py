@@ -50,7 +50,7 @@ Data from active eBay listings found for this item (titles, and item-specific va
 
 Rules:
 - The photos are the ground truth. If the eBay listings describe a different item or variant, say so in "match_note" and set "matches_photos" to false.
-- Product name format: {name_rule}. Franchise = the series it comes from (e.g. "The Legend of Zelda: Tears of the Kingdom"), Line = the prize line (e.g. "FIGURIZMα", "Desktop Cute", "BiCute Bunnies"), Variant only if the box or most listings name one (e.g. "Black Ver.", "Reissue"). Don't repeat a word already in an earlier part.
+- Product name format: {name_rule}. Franchise = the series it comes from (e.g. "The Legend of Zelda: Tears of the Kingdom"), Line = the prize line (e.g. "FIGURIZMα", "Desktop Cute", "BiCute Bunnies"), Variant whenever this item differs from the standard release of that figure: a color/outfit version visible in the photos or named by the [barcode match] listings (e.g. "Black Ver."), or an edition named on the box (e.g. "Reissue"). Titles marked [barcode match] have this exact barcode and outrank the rest. Don't repeat a word already in an earlier part.
 - ebay_title: max 80 characters, buyer search terms first (franchise, character, line, maker, "Figure"/"Plush"), then "New" / "Japan" / "Authentic" if room. No emojis, no all caps words except brand names.
 - item_specifics: only values supported by the photos or by at least 2 listings. Use eBay's names: Brand, Franchise, Character, Series, Type, Model, MPN, Material, Country of Origin, Item Height, Year Manufactured.
 - Put anything you are unsure about in "uncertain" so a human checks it.

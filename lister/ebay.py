@@ -54,6 +54,10 @@ def search(code=None, q=None):
     runs = [("gtin", {"gtin": code}), ("keyword", {"q": code})] if code else [("keyword", {"q": q})]
     seen, out = set(), []
     for how, params in runs:
+        # Keyword hits on the number are looser (sellers paste several codes, e.g. the normal
+        # and Black Ver. of the same figure), so only use them when barcode hits are thin.
+        if how == "keyword" and code and sum(it["_via"] == "gtin" for it in out) >= 3:
+            break
         for it in get("/buy/browse/v1/item_summary/search", limit=50, filter=flt, **params).get("itemSummaries", []):
             if it["itemId"] not in seen:
                 seen.add(it["itemId"])
@@ -124,7 +128,8 @@ def gather(code=None, q=None):
         "n_listings": len(items),
         "n_us": sum((it.get("itemLocation") or {}).get("country") == "US" for it in items),
         "n_detailed": len(dets),
-        "titles": [it["title"] for it in items[:15]],
+        "titles": [("[barcode match] " if it["_via"] == "gtin" else "") + it["title"]
+                   for it in sorted(items, key=lambda it: it["_via"] != "gtin")[:15]],
         "aspect_votes": {k: dict(v.most_common(4)) for k, v in votes.items()},
         "ebay_category_id": cat_ids.most_common(1)[0][0] if cat_ids else "",
         "ebay_category_path": next((d.get("categoryPath") for d in dets if d.get("categoryPath")), ""),
