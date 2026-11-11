@@ -17,7 +17,7 @@ Not built yet: publishing the draft to eBay (Inventory API), crosslist copy for 
 
 ```bash
 git clone https://github.com/ryanrashid/claw-lister && cd claw-lister
-python3 -m venv .venv
+python3 -m venv .venv            # needs Python 3.10+ (check: python3 --version)
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt    # zxing-cpp + pillow, inside .venv only
 cp .env.example .env               # fill in the eBay Production App ID + Cert ID

@@ -1,4 +1,6 @@
-zxing-cpp>=2.2
+# Python 3.10+ recommended (3.9 is end-of-life). zxing-cpp 3.x has no 3.9 wheels.
+zxing-cpp>=2.2 ; python_version >= "3.10"
+zxing-cpp>=2.2,<3 ; python_version < "3.10"
 pillow>=10.0
 # optional, for iPhone .heic photos:
 # pillow-heif>=0.16
