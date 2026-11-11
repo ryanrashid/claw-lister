@@ -3,6 +3,8 @@ import base64, json, os, re, statistics, sys
 import urllib.error, urllib.parse, urllib.request
 from collections import Counter, defaultdict
 
+from .config import ROOT
+
 API = "https://api.ebay.com"
 TOP_N_ASPECTS = 5
 JUNK = {"", "na", "n/a", "none", "does not apply", "unbranded", "not applicable", "-", "unknown"}
@@ -148,18 +150,35 @@ def resolve_category(cat_id, path):
 
 
 _cat_cache = {}
+ASPECT_CACHE = ROOT / ".cache" / "category_aspects.json"
+ASPECT_MAX_AGE = 30 * 24 * 3600   # eBay changes required specifics rarely; refresh monthly
+
+
+def _cached_aspects(cid):
+    import time
+    data = json.loads(ASPECT_CACHE.read_text()) if ASPECT_CACHE.exists() else {}
+    hit = data.get(cid)
+    if hit and time.time() - hit["at"] < ASPECT_MAX_AGE:
+        return hit["aspects"]
+    aspects = category_aspects(cid)
+    if aspects["required"] or aspects["recommended"]:
+        data[cid] = {"at": time.time(), "aspects": aspects}
+        ASPECT_CACHE.parent.mkdir(exist_ok=True)
+        ASPECT_CACHE.write_text(json.dumps(data, indent=1))
+    return aspects
 
 
 def house_categories():
-    """{'Figure': {...}, 'Plush': {...}}: id, path, and eBay's required/recommended specifics."""
+    """{'Figure': {...}, 'Plush': {...}}: id, path, and eBay's required/recommended specifics.
+    Ids come from config; only an empty id triggers a lookup by path."""
     from .config import EBAY_CATEGORIES
     if not _cat_cache:
         for kind, (cid, path) in EBAY_CATEGORIES.items():
-            cid, note = resolve_category(cid, path)
-            if note:
-                print(f"  ! {kind} category: {note}")
+            if not cid:
+                cid, note = resolve_category(cid, path)
+                print(f"  ! {kind} category id not set in config; looked up: {cid or 'not found'} {note}")
             _cat_cache[kind] = {"id": cid, "path": path,
-                                "aspects": category_aspects(cid) if cid else {"required": [], "recommended": []}}
+                                "aspects": _cached_aspects(cid) if cid else {"required": [], "recommended": []}}
     return _cat_cache
 
 

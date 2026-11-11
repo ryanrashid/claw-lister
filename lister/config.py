@@ -29,11 +29,12 @@ INTRO_LINE = ("Brand new, unopened, won from a claw machine at Round 1 SF. "
 NAME_RULE = "{Franchise} {Line} {Character} [{Variant}] Figure   (or ... Plush)"
 PLATFORM_MARKUP = {"eBay": 0.0, "Depop": 0.0, "Mercari": 1.0, "FB Marketplace": 1.0}
 
-# eBay US category per item type: (id, full path). Leave an id empty to have it looked up
-# by path (Taxonomy API). The path is also how a configured id gets double-checked.
+# eBay US category per item type: (id, full path). The id is what's used; the path is a label.
+# To find an id: open the category on ebay.com; it's the number in the URL
+# (ebay.com/b/Other-Stuffed-Animals/230/bn_...). An empty id gets looked up by path once.
 EBAY_CATEGORIES = {
     "Figure": ("261055", "Collectibles > Animation Art & Merchandise > Animation Merchandise > Figures & Statues"),
-    "Plush": ("", "Toys & Hobbies > Stuffed Animals > Other Stuffed Animals"),
+    "Plush": ("230", "Toys & Hobbies > Stuffed Animals > Other Stuffed Animals"),
 }
 
 # Things you always put, whatever the photos/listings say. These override Claude and eBay data.
