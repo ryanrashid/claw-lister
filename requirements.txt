@@ -1,0 +1,4 @@
+pyzbar>=0.1.9
+pillow>=10.0
+# optional, for iPhone .heic photos:
+# pillow-heif>=0.16
