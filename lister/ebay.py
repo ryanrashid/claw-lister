@@ -101,7 +101,7 @@ def prices(items):
         cond = "New" if (it.get("condition") or "").lower().startswith("new") else "Used/other"
         where = "US" if (it.get("itemLocation") or {}).get("country") == "US" else "abroad"
         groups[f"{cond}, ships from {where}"].append({"total": round(p + ship, 2), "price": p, "title": it["title"],
-                             "url": it.get("itemWebUrl", "")})
+                             "url": it.get("itemWebUrl", "").split("?")[0]})
     out = {}
     order = ["New, ships from US", "Used/other, ships from US", "New, ships from abroad", "Used/other, ships from abroad"]
     for cond in [k for k in order if k in groups]:
