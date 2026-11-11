@@ -7,7 +7,7 @@ Photos of a claw-machine prize in, a draft listing out.
 ```
 
 1. **Identify** — read the JAN/UPC barcode from the photos (`pyzbar`). No barcode? Claude reads the box.
-2. **Look up** — eBay Browse API: US listings for that barcode, item specifics from the top 5 (with how many agree), active prices.
+2. **Look up** — eBay Browse API: listings for that barcode (worldwide sellers, since many of these are mostly listed from Japan), item specifics from the top 5 (with how many agree), active prices split US vs. abroad.
 3. **Clean up** — Claude checks the eBay matches against your photos and writes the name (house format), an 80-char eBay title, and item specifics.
 4. **Draft** — `draft.md`: title, category, specifics, your intro line, a slot for the BBTS description, price snapshot, TODOs for weight and price, a Products row to paste into the Shop Ledger.
 

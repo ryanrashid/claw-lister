@@ -47,7 +47,7 @@ def process(folder):
         print("  barcode found nothing on eBay — falling back to box reading")
         box = claude.read_box(photos, cwd=folder)
         info = ebay.gather(q=box.get("search_query"))
-    print(f"  eBay: {info['n_listings']} US listings, specifics from {info['n_detailed']}")
+    print(f"  eBay: {info['n_listings']} listings ({info['n_us']} from US sellers), specifics from {info['n_detailed']}")
 
     print("  Claude: matching to photos and cleaning up")
     rec = claude.clean_up(photos, code, info, NAME_RULE, cwd=folder)

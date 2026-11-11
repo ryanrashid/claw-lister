@@ -45,7 +45,7 @@ def clean_up(photo_names, barcode, ebay, name_rule, cwd):
 First use the Read tool to look at these photos in the current folder: {', '.join(photo_names[:MAX_PHOTOS])}.
 
 Barcode on the box: {barcode or "none found"}
-Data from active US eBay listings found for this item (titles, and item-specific values with how many listings gave each):
+Data from active eBay listings found for this item (titles, and item-specific values with how many listings gave each):
 {json.dumps({k: ebay[k] for k in ("n_listings", "titles", "aspect_votes", "ebay_category_path")}, ensure_ascii=False, indent=1)}
 
 Rules:

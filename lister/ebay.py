@@ -34,7 +34,9 @@ def token():
 def get(path, **params):
     url = f"{API}{path}" + ("?" + urllib.parse.urlencode(params) if params else "")
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token()}",
-                                               "X-EBAY-C-MARKETPLACE-ID": "EBAY_US"})
+                                               "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
+                                               # shipping estimates as if the buyer is in the US
+                                               "X-EBAY-C-ENDUSERCTX": "contextualLocation=country%3DUS%2Czip%3D94103"})
     try:
         return json.load(urllib.request.urlopen(req))
     except urllib.error.HTTPError as e:
@@ -43,8 +45,12 @@ def get(path, **params):
 
 
 def search(code=None, q=None):
-    """US listings by barcode (+ the number as keywords), or by free-text query."""
-    flt = "itemLocationCountry:US,buyingOptions:{FIXED_PRICE|AUCTION}"
+    """Listings worldwide (shown on ebay.com) by barcode (+ the number as keywords), or by text.
+
+    Not limited to US sellers: many of these items are mostly listed by sellers in Japan,
+    and their item specifics are still good. Prices are split US vs. abroad later.
+    """
+    flt = "buyingOptions:{FIXED_PRICE|AUCTION}"
     runs = [("gtin", {"gtin": code}), ("keyword", {"q": code})] if code else [("keyword", {"q": q})]
     seen, out = set(), []
     for how, params in runs:
@@ -57,7 +63,9 @@ def search(code=None, q=None):
 
 
 def details(items, n=TOP_N_ASPECTS):
-    ranked = sorted(items, key=lambda it: it["_via"] != "gtin")[:n]
+    # barcode matches first, then US sellers (English specifics)
+    ranked = sorted(items, key=lambda it: (it["_via"] != "gtin",
+                                           (it.get("itemLocation") or {}).get("country") != "US"))[:n]
     return [get(f"/buy/browse/v1/item/{urllib.parse.quote(it['itemId'])}") for it in ranked]
 
 
@@ -91,10 +99,13 @@ def prices(items):
             except (KeyError, ValueError):
                 pass
         cond = "New" if (it.get("condition") or "").lower().startswith("new") else "Used/other"
-        groups[cond].append({"total": round(p + ship, 2), "price": p, "title": it["title"],
+        where = "US" if (it.get("itemLocation") or {}).get("country") == "US" else "abroad"
+        groups[f"{cond}, ships from {where}"].append({"total": round(p + ship, 2), "price": p, "title": it["title"],
                              "url": it.get("itemWebUrl", "")})
     out = {}
-    for cond, g in groups.items():
+    order = ["New, ships from US", "Used/other, ships from US", "New, ships from abroad", "Used/other, ships from abroad"]
+    for cond in [k for k in order if k in groups]:
+        g = groups[cond]
         g.sort(key=lambda x: x["total"])
         t = [x["total"] for x in g]
         out[cond] = {"n": len(g), "low": t[0], "median": round(statistics.median(t), 2),
@@ -111,6 +122,7 @@ def gather(code=None, q=None):
     return {
         "query": code or q,
         "n_listings": len(items),
+        "n_us": sum((it.get("itemLocation") or {}).get("country") == "US" for it in items),
         "n_detailed": len(dets),
         "titles": [it["title"] for it in items[:15]],
         "aspect_votes": {k: dict(v.most_common(4)) for k, v in votes.items()},

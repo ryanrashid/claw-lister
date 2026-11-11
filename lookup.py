@@ -18,7 +18,7 @@ def main():
     for arg in sys.argv[1:]:
         digits = "".join(c for c in arg if c.isdigit())
         info = ebay.gather(code=digits) if digits == arg.strip() else ebay.gather(q=arg)
-        print(f"\n=== {arg}   ({info['n_listings']} US listings, specifics from {info['n_detailed']})")
+        print(f"\n=== {arg}   ({info['n_listings']} listings, {info['n_us']} from US sellers, specifics from {info['n_detailed']})")
         print(f"  category: {info['ebay_category_path']}")
         for t in info["titles"][:5]:
             print(f"  - {t}")

@@ -8,11 +8,9 @@ from .ebay import barcode_kind
 
 def price_lines(prices):
     out = []
-    for cond in ("New", "Used/other"):
-        p = prices.get(cond)
-        if not p:
-            out.append(f"- **{cond}:** no active US listings")
-            continue
+    if not prices:
+        return ["- no active listings found"]
+    for cond, p in prices.items():
         out.append(f"- **{cond}:** {p['n']} listings · low ${p['low']:.2f} · median ${p['median']:.2f} · "
                    f"high ${p['high']:.2f} (incl. shipping)")
         for c in p["cheapest"]:
@@ -38,7 +36,7 @@ def render(folder_name, photos, barcode, ebay, rec):
     if rec.get("matches_photos") is False:
         warn.append(f"> ⚠ **eBay matches may be a different item:** {rec.get('match_note', '')}")
     if not ebay.get("n_listings"):
-        warn.append("> ⚠ No active US eBay listings found — fields come from the photos only.")
+        warn.append("> ⚠ No active eBay listings found — fields come from the photos only.")
 
     title = rec.get("ebay_title", "")
     md = [f"# {rec.get('name') or folder_name}", "",
@@ -52,7 +50,7 @@ def render(folder_name, photos, barcode, ebay, rec):
            "## Description", "",
            INTRO_LINE.replace("[release date/rarity]", f"[release date/rarity — box says: {rec.get('release_info') or 'nothing'}]"),
            "", "[paste BBTS description here]", "",
-           "## Price", "", "Active US listings right now (asking prices, not sold):"]
+           "## Price", "", "Active listings right now (asking prices, not sold). US sellers are your real competition; abroad totals include international shipping:"]
     md += price_lines(ebay.get("prices", {}))
     md += ["", "| Platform | Price |", "|---|---|"]
     md += [f"| {p} | **TODO**{f' (eBay + ${m:.0f})' if m else ''} |" for p, m in PLATFORM_MARKUP.items()]
