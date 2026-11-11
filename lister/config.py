@@ -44,3 +44,21 @@ HOUSE_SPECIFICS = {
     "Country/Region of Manufacture": "Japan",   # eBay's name for the same field in some categories
 }
 TITLE_SUFFIX = " (US Seller)"   # appended to every eBay title when it fits in 80 characters
+
+# ---- publishing (publish.py) ----
+SCHEDULE_DAYS = 21          # new listings start this many days out = a "draft" you finish in Seller Hub
+ITEM_POSTAL_CODE = "94103"  # ZIP the item ships from
+# Your account doesn't use eBay business policies, so these go into each listing directly.
+# (If you ever turn business policies on, put their ids in EBAY_POLICIES and they win.)
+EBAY_POLICIES = {"shipping": "", "payment": "", "returns": ""}
+SHIPPING = {
+    "service": "USPSParcel",            # eBay's code for USPS Ground Advantage; buyer pays, calculated
+    "handling_days": 2,
+    "intl_ebay_international_shipping": True,
+}
+RETURNS = {
+    "domestic": False,                  # no returns (eBay Money Back Guarantee still covers not-as-described)
+    "intl_via_ebay_international_shipping": True,   # accepted within 30 days, eBay handles it
+    "intl_days": 30,
+}
+CONDITION_ID = 1000         # eBay "New"

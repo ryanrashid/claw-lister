@@ -26,6 +26,42 @@ def products_row(rec, barcode):
                       rec.get("height", "")])
 
 
+def description_text(rec, details):
+    lines = [INTRO_LINE.replace("[release date/rarity]", rec.get("intro_hook") or "[release date/rarity]"),
+             "", BBTS_PLACEHOLDER, ""]
+    lines += [f"- {k}: {v}" for k, v in details]
+    lines += ["- Condition: Brand new, factory sealed"]
+    return "\n".join(lines)
+
+
+BBTS_PLACEHOLDER = "[paste BBTS description here, or delete this line]"
+
+
+def _toml_str(v):
+    return json.dumps(str(v), ensure_ascii=False)   # JSON string escapes are valid TOML basic strings
+
+
+def listing_toml(photos, title, kind, specifics, description):
+    """The file you edit before publishing. Everything publish.py sends to eBay comes from here.
+    (TOML: top-level keys must come before the [package] / [specifics] sections.)"""
+    from .config import SCHEDULE_DAYS
+    out = ["# Edit this, then: python3 publish.py <this folder>",
+           "# Anything marked TODO must be filled in.", "",
+           f"title = {_toml_str(title)}   # max 80 characters",
+           "price = 0.00            # TODO  USD, eBay price",
+           f"category = {_toml_str(kind)}      # Figure or Plush (ids in lister/config.py)",
+           f"schedule_days = {SCHEDULE_DAYS}       # 0 = list right away; otherwise starts this many days out",
+           "# listing order; first = main photo",
+           "photos = [" + ", ".join(_toml_str(p) for p in photos) + "]", "",
+           "# Plain text. Blank line = new paragraph, '- ' lines = bullet list.",
+           "description = '''", description.replace("'''", '"""'), "'''", "",
+           "[package]   # TODO: packed weight and box size",
+           "weight_lb = 0", "weight_oz = 0", "length_in = 0", "width_in = 0", "height_in = 0", "",
+           "[specifics]"]
+    out += [f"{_toml_str(k)} = {_toml_str(v)}" for k, v in specifics.items()]
+    return "\n".join(out) + "\n"
+
+
 def render(folder_name, photos, barcode, ebay, rec):
     specifics = {k: v for k, v in (rec.get("item_specifics") or {}).items()
                  if k not in ("UPC", "EAN", "Condition") and k not in HOUSE_SPECIFICS}
@@ -68,11 +104,7 @@ def render(folder_name, photos, barcode, ebay, rec):
     md += [f"| {k} | {v} |" for k, v in specifics.items()]
     md += [f"| {m} | **TODO (required)** |" for m in missing]
     md += ["", "Shipping: weight **TODO**, package size **TODO**", "",
-           "## Description", "",
-           INTRO_LINE.replace("[release date/rarity]", rec.get("intro_hook") or "[release date/rarity]"),
-           "", "[paste BBTS description here]", ""]
-    md += [f"- {k}: {v}" for k, v in details]
-    md += ["- Condition: Brand new, factory sealed", ""]
+           "## Description", "", description_text(rec, details), ""]
     if rec.get("box_facts"):
         md += ["**From the box (for you, not the listing):** " + " · ".join(rec["box_facts"]), ""]
     md += [
@@ -83,10 +115,18 @@ def render(folder_name, photos, barcode, ebay, rec):
     if rec.get("uncertain"):
         md += ["", "## Check these", ""] + [f"- {u}" for u in rec["uncertain"]]
     md += ["", "## Products row (paste into column B)", "", "```", products_row(rec, barcode), "```", ""]
-    return "\n".join(md)
+    kind = rec.get("category") if rec.get("category") in cats else "Figure"
+    return "\n".join(md), listing_toml(photos, title, kind, specifics, description_text(rec, details))
 
 
-def save(folder, photos, barcode, ebay, rec):
-    (folder / "draft.md").write_text(render(folder.name, photos, barcode, ebay, rec))
+def save(folder, photos, barcode, ebay, rec, overwrite_listing=False):
+    md, toml = render(folder.name, photos, barcode, ebay, rec)
+    (folder / "draft.md").write_text(md)
+    lt = folder / "listing.toml"
+    if overwrite_listing or not lt.exists():
+        lt.write_text(toml)
+    else:
+        (folder / "listing.new.toml").write_text(toml)
+        print("  (kept your edited listing.toml; the fresh one is listing.new.toml)")
     (folder / "draft.json").write_text(json.dumps(
         {"barcode": barcode, "photos": photos, "record": rec, "ebay": ebay}, ensure_ascii=False, indent=1))
