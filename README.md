@@ -70,6 +70,8 @@ it writes `listing.new.toml` instead), and after publishing `published.json` + `
 
 One folder per item. If a folder has two different barcodes, it warns: split it.
 
+How each step works (code, APIs, logic): see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Layout
 
 | File | What |

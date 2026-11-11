@@ -27,14 +27,17 @@ def ask_json(prompt, cwd):
 
 
 def read_box(photo_names, cwd):
-    """No barcode found: identify the item from the packaging."""
+    """No barcode decoded: identify the item from packaging, tags, and the item itself."""
     prompt = f"""You are identifying a Japanese prize figure or plush from product photos.
 Use the Read tool to look at each of these files in the current folder: {', '.join(photo_names[:MAX_PHOTOS])}.
+Figures usually come in a printed box. Plushies often have no box: use the paper hang tag and the
+sewn-in fabric tag (maker such as SEGA, Taito, FuRyu, Bandai Spirits, San-X, Sanrio; series name; size
+in cm; prize code), plus the character itself.
 
 Reply with ONLY a JSON object:
-{{"search_query": "best eBay search to find this exact item (maker, line, character, variant; English)",
-  "barcode_digits": "any JAN/UPC digits printed on the box, else empty",
-  "box_text": "important text you can read (maker, line name, character, version, year, height)",
+{{"search_query": "best eBay search to find this exact item: maker, line/series, character, variant, and 'plush' or 'figure', plus size for plushies (e.g. '30cm'); English, no filler words",
+  "barcode_digits": "any JAN/UPC digits printed on a box or tag, else empty",
+  "box_text": "important text you can read on box or tags (maker, line, character, version, year, size)",
   "confidence": "high|medium|low"}}"""
     return ask_json(prompt, cwd)
 
