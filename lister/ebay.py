@@ -8,6 +8,7 @@ from .config import ROOT
 API = "https://api.ebay.com"
 TOP_N_ASPECTS = 5
 JUNK = {"", "na", "n/a", "none", "does not apply", "unbranded", "not applicable", "-", "unknown"}
+PRIZE_WORDS = re.compile(r"\b(figure|figurine|plush|plushie|statue|prize|nendoroid|figma|acrylic stand|keychain)\b", re.I)
 LOT_WORDS = re.compile(r"\b(lot|bundle|set of \d|x\d|\d+\s*pcs|pick one|choose)\b", re.I)
 
 _token = None
@@ -257,7 +258,11 @@ def gather(code=None, q=None):
     dets = details(items) if items else []
     sim_items, sim_dets, sim_q = [], [], ""
     us_exact = sum((it.get("itemLocation") or {}).get("country") == "US" for it in items)
-    if code and us_exact < 3:
+    # Similar (same-model) search is for goods like electronics. For prize figures/plush the
+    # "model" is usually just the franchise ("Taito Monogatari Series" -> 50 other characters),
+    # and their category is fixed anyway, so skip it.
+    prize_like = any(PRIZE_WORDS.search(it.get("title", "")) for it in items)
+    if code and us_exact < 3 and not prize_like:
         sim_q = similar_query(dets, items)
         if sim_q:
             seen = {it["itemId"] for it in items}

@@ -7,7 +7,8 @@ Put each item's photos in its own folder inside the inbox (default ~/Listings/in
 Then:
     python3 list.py                 # every folder without a draft yet
     python3 list.py path/to/folder  # just these folders
-    python3 list.py --redo          # regenerate existing drafts too
+    python3 list.py --redo          # redo the research (barcode, eBay, Claude) for existing drafts too
+    python3 list.py --render        # rebuild draft.md / listing.new.toml from saved draft.json: no eBay, no Claude
 
 For each folder: read barcode from the photos (or have Claude read the box) ->
 eBay lookup -> Claude cleans it up against the photos -> writes draft.md + draft.json there.
@@ -57,10 +58,29 @@ def process(folder):
     print(f"  -> {folder / 'draft.md'}")
 
 
+def render_only(folder):
+    """Re-render from the saved research (after a code/format change). Costs nothing."""
+    import json
+    saved = folder / "draft.json"
+    if not saved.exists():
+        print("  no draft.json yet; run list.py without --render first")
+        return
+    d = json.loads(saved.read_text())
+    draft.save(folder, d["photos"], d["barcode"], d["ebay"], d["record"])
+    print(f"  -> re-rendered {folder / 'draft.md'} (no eBay or Claude calls)")
+
+
 def main():
     load_env()
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     redo = "--redo" in sys.argv
+    if "--render" in sys.argv:
+        folders = [Path(a).expanduser() for a in args] or sorted(
+            p for p in inbox().iterdir() if p.is_dir() and (p / "draft.json").exists())
+        for f in folders:
+            print(f"\n=== {f.name}")
+            render_only(f)
+        return
     if args:
         folders = [Path(a).expanduser() for a in args]
     else:

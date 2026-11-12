@@ -18,10 +18,21 @@ listing.toml (edited) ─▶ publish.py: validate ─▶ Media API photos ─▶
   and length 8/12/13. 12-digit UPC-A gets a leading `0` (UPC-A is EAN-13 with a leading 0).
 - One code per folder: most photos wins; mismatch prints a "split the folder" warning.
 
+## Claude calls — `lister/claude.py`
+- **Lean mode (default, `CLAUDE_LEAN`):** one turn per call. Photos are resized to ≤1568px JPEG and sent
+  inline as base64 image blocks via `--input-format stream-json` (+ `--output-format stream-json --verbose`;
+  the final `result` event is parsed). `--system-prompt` replaces Claude Code's large default prompt,
+  `--tools ""` loads no tools, `--strict-mcp-config` skips MCP servers, `--model` from `CLAUDE_MODEL`
+  (default `sonnet`). Measured before this: Opus, 6 turns (one Read per photo), ~26k cache write + ~33k
+  cache read per item.
+- **Fallback:** if the lean call fails (older CLI etc.), the old mode: `--allowedTools Read`, Claude
+  opens the photos itself (asked to open them all in one step).
+- Every call's reported usage is printed and saved in `draft.json` (`claude_usage`).
+- `list.py --render` rebuilds outputs from `draft.json` with no Claude/eBay calls.
+
 ## 1b. No barcode — `claude.read_box`
-- `subprocess.run(["claude", "-p", prompt, "--output-format", "json", "--allowedTools", "Read"], cwd=folder)`:
-  Claude Code CLI headless on the Pro plan. `ANTHROPIC_API_KEY` is stripped from the child env
-  (otherwise the CLI bills that key). The prompt lists ≤6 photo filenames; Claude views them with Read.
+- Runs through the Claude Code CLI on the Pro plan (see "Claude calls" above). `ANTHROPIC_API_KEY` is
+  stripped from the child env (otherwise the CLI bills that key). ≤6 photos.
 - Prompt covers boxes (figures) and paper hang tags / sewn-in tags (plushies). Returns
   `search_query`, `barcode_digits` (digits read off a box/tag), `box_text`, `confidence`.
 - Parsing: CLI JSON envelope → `.result` text → first `{…}` via regex → `json.loads`.

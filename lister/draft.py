@@ -156,5 +156,10 @@ def save(folder, photos, barcode, ebay, rec, overwrite_listing=False):
     else:
         (folder / "listing.new.toml").write_text(toml)
         print("  (kept your edited listing.toml; the fresh one is listing.new.toml)")
+    from .claude import USAGE_LOG
+    prev = json.loads((folder / "draft.json").read_text()) if (folder / "draft.json").exists() else {}
+    usage = list(USAGE_LOG) or prev.get("claude_usage", [])   # --render keeps the original numbers
+    USAGE_LOG.clear()
     (folder / "draft.json").write_text(json.dumps(
-        {"barcode": barcode, "photos": photos, "record": rec, "ebay": ebay}, ensure_ascii=False, indent=1))
+        {"barcode": barcode, "photos": photos, "record": rec, "ebay": ebay, "claude_usage": usage},
+        ensure_ascii=False, indent=1))

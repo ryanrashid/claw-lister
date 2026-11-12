@@ -36,7 +36,7 @@ npm install @anthropic-ai/claude-code      # creates ./node_modules (gitignored)
 echo "CLAUDE_BIN=$PWD/node_modules/.bin/claude" >> .env
 ```
 
-Claude runs on your Pro plan through that CLI. Don't set `ANTHROPIC_API_KEY`
+Claude runs on your Pro plan through that CLI. Each call prints the tokens it used (also saved in draft.json as `claude_usage`). Don't set `ANTHROPIC_API_KEY`
 (the scripts strip it anyway) or it would bill an API key instead.
 
 ## eBay sign-in (for creating listings)
@@ -55,7 +55,8 @@ The `.env` keys can only read public listings. Listing for you needs a one-time 
 ```bash
 python3 list.py                     # every inbox folder without a draft.md
 python3 list.py ~/Listings/inbox/x  # specific folders
-python3 list.py --redo              # rebuild drafts
+python3 list.py --redo              # redo the research (eBay + Claude) for existing drafts
+python3 list.py --render            # rebuild draft.md / listing.new.toml from saved research: no eBay, no Claude
 python3 lookup.py 4580779532934     # quick eBay check, no photos / no Claude
 python3 lookup.py "desktop cute hitagi"
 python3 auth.py                     # once: eBay sign-in, prints your business policies

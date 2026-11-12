@@ -63,3 +63,8 @@ RETURNS = {
     "intl_days": 30,
 }
 CONDITION_ID = 1000         # eBay "New"
+
+# ---- Claude usage (list.py) ----
+CLAUDE_MODEL = "sonnet"     # cheaper on Pro limits than Opus; set "opus" (or "") to compare/revert
+CLAUDE_LEAN = True          # photos sent inline, own short system prompt, no tools/MCP: ~1 turn per call
+CLAUDE_IMAGE_MAX = 1568     # px; Claude downsizes larger images anyway, so bigger only costs upload time
