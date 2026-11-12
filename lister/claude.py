@@ -164,6 +164,8 @@ Rules:
 - item_specifics: use exactly the aspect names of the category you chose; fill every required one and as many recommended ones as the evidence supports, in English; for "allowed" aspects use one of the listed values. A value needs one of: the photos/box/tag, 2+ listings agreeing, or (for model-level specs only) 1 listing that plainly describes this same model and isn't contradicted. Don't include UPC/EAN or Condition{", or these fields the owner sets himself for Figure/Plush: " + house_keys if house_keys else ""}.
 - intro_hook (Figure/Plush only): a short phrase that completes "This figurine/plush is ___ so get it here now!" using only facts from the box or listings (e.g. "a 2025 FuRyu prize exclusive, one version only"). Empty if nothing true and interesting.
 - intro_line (Other only): one plain, factual opening sentence for the description (what it is, condition, what's included). No claw-machine wording.
+- Buyer-facing text (name, ebay_title, intro_hook, intro_line, item_specifics values) must be in English: romanize Japanese names (e.g. 黒星紅白 -> Kuroboshi Kouhaku), never paste Japanese characters there. Japanese is fine in box_facts.
+- height: use the best value you have (box/tag first, then listings); if it isn't on the box/tag or at least 2 listings don't agree, still fill it in but say so in "uncertain".
 - box_facts: other useful facts read from the packaging (manufacture date, made in, sculptor, distributor sticker, wear), one per item.
 - Put anything you are unsure about in "uncertain" so a human checks it.
 

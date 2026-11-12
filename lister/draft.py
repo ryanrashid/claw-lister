@@ -1,5 +1,6 @@
 """Per-item outputs: draft.md (research to read), listing.toml (the listing to edit), draft.json (raw)."""
 import json
+import re
 from datetime import date
 
 from .config import HOUSE_SPECIFICS, INTRO_LINE, INTRO_NOUN, PLATFORM_MARKUP, TITLE_SUFFIX
@@ -121,6 +122,11 @@ def render(folder_name, photos, barcode, ebay, rec):
     if missing:
         todo.append("Required by eBay, not found: " + ", ".join(missing) + " (marked TODO in listing.toml)")
     todo += list(rec.get("uncertain") or [])
+    cjk = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uff00-\uffef]")
+    for label, text in (("Title", title), ("Intro", rec.get("intro_hook") or rec.get("intro_line") or ""),
+                        ("Specifics", " ".join(map(str, specifics.values())))):
+        if cjk.search(text):
+            todo.insert(0, f"{label} contains Japanese characters; romanize or remove them in listing.toml")
     if todo:
         md += ["## Check these", ""] + [f"- {u}" for u in todo] + [""]
     if rec.get("box_facts"):
