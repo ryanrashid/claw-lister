@@ -25,7 +25,8 @@ def inbox():
 
 # Listing conventions (edit here, not in code below)
 INTRO_LINE = ("Brand new, unopened, won from a claw machine at Round 1 SF. "
-              "This figurine is [release date/rarity] so get it here now!")
+              "This {noun} is [release date/rarity] so get it here now!")
+INTRO_NOUN = {"Figure": "figurine", "Plush": "plush"}   # fills {noun} in INTRO_LINE
 NAME_RULE = "{Franchise} {Line} {Character} [{Variant}] Figure   (or ... Plush)"
 PLATFORM_MARKUP = {"eBay": 0.0, "Depop": 0.0, "Mercari": 1.0, "FB Marketplace": 1.0}
 

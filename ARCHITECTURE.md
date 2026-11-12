@@ -42,7 +42,14 @@ listing.toml (edited) ─▶ publish.py: validate ─▶ Media API photos ─▶
   has no such aspect (avoids double counting).
 - **Prices:** total = price + first shipping option; grouped by New/Used × ships-from US/abroad
   (`itemLocation.country`); n, low, median, high, 3 cheapest.
-- **Category:** fixed ids in `config.EBAY_CATEGORIES` (Figure 261055, Plush 230). **Taxonomy**
+- **Thin barcode results** (< 3 US matches): a second search by brand + model (from the matches'
+  Brand/Model specifics, any language) adds "similar" listings. They feed model-level specs and the
+  category only; identity and variant still come from exact matches.
+- **Specifics are split by site:** ebay.com listings vs other eBay sites (`listingMarketplaceId`), the
+  latter tagged `[EBAY_IT]` etc. so Claude translates them.
+- **Category:** Figure/Plush fixed in `config.EBAY_CATEGORIES` (261055, 230). Anything else ("Other"):
+  the most common `categoryId` among ebay.com listings (exact + similar), else Taxonomy
+  `get_category_suggestions` for the title; its aspects are fetched like the fixed ones. **Taxonomy**
   `get_item_aspects_for_category` gives required/recommended aspects and allowed values for
   SELECTION_ONLY aspects; cached in `.cache/category_aspects.json` for 30 days.
 
@@ -56,11 +63,15 @@ listing.toml (edited) ─▶ publish.py: validate ─▶ Media API photos ─▶
   `uncertain`, `matches_photos`.
 
 ## 4. Draft — `lister/draft.py` (deterministic)
-- Strip Claude's UPC/EAN/Condition/house keys; add exactly one barcode field (`UPC` = 12 digits if the code
+- Prize items (Figure/Plush) get the house specifics, intro line and BBTS slot; "Other" items get
+  Claude's neutral `intro_line`, keep Claude's country, and `category` = the numeric eBay id.
+- Strip Claude's UPC/EAN/Condition (and house keys on prize items); add exactly one barcode field (`UPC` = 12 digits if the code
   starts with 0, else `EAN`); apply `HOUSE_SPECIFICS` only to aspects the category has (hence Country lands
   in "Country/Region of Manufacture"); required aspects still missing → `TODO`; append `TITLE_SUFFIX` if
   it fits in 80.
-- Writes `draft.md` (to read), `draft.json` (raw inputs/outputs), `listing.toml` (to edit: top-level keys
+- Writes `draft.md` (research only: Check these, box facts, price research, category, Products row; no
+  listing content, so there's one place to edit), `draft.json` (raw inputs/outputs), `listing.toml` (the
+  listing itself, to edit; required aspects still missing appear as `TODO (required by eBay)`, which blocks publish: top-level keys
   before `[package]`/`[specifics]` per TOML; strings JSON-escaped, which TOML accepts; description as a
   `'''` literal block). An existing `listing.toml` is never overwritten; reruns write `listing.new.toml`.
 

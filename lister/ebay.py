@@ -72,7 +72,41 @@ def details(items, n=TOP_N_ASPECTS):
     # barcode matches first, then US sellers (English specifics)
     ranked = sorted(items, key=lambda it: (it["_via"] != "gtin",
                                            (it.get("itemLocation") or {}).get("country") != "US"))[:n]
-    return [get(f"/buy/browse/v1/item/{urllib.parse.quote(it['itemId'])}") for it in ranked]
+    out = []
+    for it in ranked:
+        d = get(f"/buy/browse/v1/item/{urllib.parse.quote(it['itemId'])}")
+        if d:
+            d["_via"] = it["_via"]
+            out.append(d)
+    return out
+
+
+def is_us(d):
+    """Listed on ebay.com (English aspect names, US category tree)."""
+    return d.get("listingMarketplaceId", "EBAY_US") == "EBAY_US"
+
+
+def similar_query(dets, items):
+    """Brand + model from barcode matches, for a broader same-model search (any variant)."""
+    v = vote_aspects(dets)
+    brand = next((top for k in ("Brand", "Marca", "Marke", "Marque") for top, _ in v.get(k, Counter()).most_common(1)), "")
+    model = next((top for k in ("Model", "Modello", "Modell", "Modèle") for top, _ in v.get(k, Counter()).most_common(1)), "")
+    if model:
+        return model if brand.lower() in model.lower() else f"{brand} {model}".strip()
+    if items:   # fall back to the first barcode-match title, minus condition words
+        return re.sub(r"\b(new|used|sealed|nib|authentic|with box|and accessories|us seller)\b", "",
+                      items[0]["title"], flags=re.I)[:80]
+    return ""
+
+
+def category_votes(dets):
+    """[(id, path, count)] of categories used by ebay.com listings, most common first."""
+    c, paths = Counter(), {}
+    for d in dets:
+        if is_us(d) and d.get("categoryId"):
+            c[d["categoryId"]] += 1
+            paths[d["categoryId"]] = (d.get("categoryPath") or "").replace("|", " > ")
+    return [(cid, paths[cid], n) for cid, n in c.most_common()]
 
 
 def vote_aspects(dets):
@@ -182,6 +216,17 @@ def house_categories():
     return _cat_cache
 
 
+def category_candidates(query, n=3):
+    """eBay US category suggestions for a title-like query: [{id, path}]."""
+    res = get(f"{TREE}/get_category_suggestions", q=query[:350])
+    return [{"id": sg["category"]["categoryId"], "path": _path_of_suggestion(sg)}
+            for sg in res.get("categorySuggestions", [])[:n]]
+
+
+def aspects_cached(cid):
+    return _cached_aspects(cid)
+
+
 def category_aspects(cat_id):
     """Item specifics eBay wants for a category: required + recommended, with allowed values
     where eBay only accepts its own list."""
@@ -200,19 +245,70 @@ def category_aspects(cat_id):
 
 
 def gather(code=None, q=None):
-    """Everything the cleanup step needs about one product."""
+    """Everything the cleanup step needs about one product.
+
+    - items/dets: exact matches (barcode, or the text query) decide identity, variant and prices.
+    - If a barcode has < 3 US matches, a second brand+model search ("similar") adds evidence for
+      model-level specs (case size, material...) and the category, but never the variant.
+    - Categories: Figure/Plush are fixed in config; "Other" = most common category among ebay.com
+      listings (exact + similar), else eBay's suggestion for the title.
+    """
     items = search(code=code, q=q)
     dets = details(items) if items else []
-    votes = vote_aspects(dets)
+    sim_items, sim_dets, sim_q = [], [], ""
+    us_exact = sum((it.get("itemLocation") or {}).get("country") == "US" for it in items)
+    if code and us_exact < 3:
+        sim_q = similar_query(dets, items)
+        if sim_q:
+            seen = {it["itemId"] for it in items}
+            sim_items = [it for it in search(q=sim_q) if it["itemId"] not in seen]
+            for it in sim_items:
+                it["_via"] = "similar"
+            sim_dets = details(sim_items)
+
+    def split_votes(ds):
+        us = vote_aspects([d for d in ds if is_us(d)])
+        other = defaultdict(Counter)
+        for d in ds:
+            if not is_us(d):
+                site = d.get("listingMarketplaceId", "?")
+                for k, v in vote_aspects([d]).items():
+                    for val, n in v.items():
+                        other[f"{k} [{site}]"][val] += n
+        return ({k: dict(v.most_common(4)) for k, v in us.items()},
+                {k: dict(v.most_common(4)) for k, v in other.items()})
+
+    exact_us, exact_other = split_votes(dets)
+    sim_us, sim_other = split_votes(sim_dets)
+
+    cats = {k: dict(v) for k, v in house_categories().items()}
+    cvotes = category_votes(dets + sim_dets)
+    if cvotes:
+        oid, opath, n = cvotes[0]
+        how = f"used by {n} ebay.com listing(s)"
+    else:
+        title = (items or sim_items or [{"title": q or ""}])[0]["title"]
+        sug = category_candidates(title, n=1) if title else []
+        oid, opath = (sug[0]["id"], sug[0]["path"]) if sug else ("", "")
+        how = "eBay's suggestion for the title"
+    if oid:
+        cats["Other"] = {"id": oid, "path": opath, "how": how, "aspects": aspects_cached(oid)}
+
     return {
         "query": code or q,
         "n_listings": len(items),
-        "n_us": sum((it.get("itemLocation") or {}).get("country") == "US" for it in items),
+        "n_us": us_exact,
         "n_detailed": len(dets),
         "titles": [("[barcode match] " if it["_via"] == "gtin" else "") + it["title"]
                    for it in sorted(items, key=lambda it: it["_via"] != "gtin")[:15]],
-        "aspect_votes": {k: dict(v.most_common(4)) for k, v in votes.items()},
-        "categories": house_categories(),
+        "aspect_votes": exact_us,
+        "aspect_votes_other_sites": exact_other,
+        "similar": {"query": sim_q, "n_listings": len(sim_items), "n_detailed": len(sim_dets),
+                    "titles": [it["title"] for it in sim_items[:10]],
+                    "aspect_votes": sim_us, "aspect_votes_other_sites": sim_other,
+                    "prices": prices(sim_items)} if sim_q else None,
+        "category_votes": [{"id": i, "path": p, "listings": n} for i, p, n in cvotes],
+        "categories": cats,
         "epid": next((d.get("epid") for d in dets if d.get("epid")), ""),
         "prices": prices(items),
     }

@@ -22,7 +22,15 @@ except ImportError:   # Python < 3.11
 from lister import trading
 from lister.config import (CONDITION_ID, EBAY_CATEGORIES, EBAY_POLICIES, ITEM_POSTAL_CODE, RETURNS,
                            SHIPPING, load_env)
-from lister.draft import BBTS_PLACEHOLDER
+from lister.draft import BBTS_PLACEHOLDER, OTHER_PLACEHOLDER
+
+
+def category_id(L):
+    """'Figure'/'Plush' -> id from config; a numeric id is used as-is (any eBay category)."""
+    c = str(L.get("category", "")).strip()
+    if c in EBAY_CATEGORIES:
+        return EBAY_CATEGORIES[c][0]
+    return c if c.isdigit() else None
 
 
 def problems(L):
@@ -36,12 +44,20 @@ def problems(L):
         p.append("package weight is not set")
     if any(float(pk.get(k, 0)) <= 0 for k in ("length_in", "width_in", "height_in")):
         p.append("package size is not set")
-    if "TODO" in L.get("description", "") or BBTS_PLACEHOLDER in L.get("description", ""):
+    if any(x in L.get("description", "") for x in ("TODO", BBTS_PLACEHOLDER, OTHER_PLACEHOLDER)):
         p.append("description still has TODO / the BBTS placeholder")
     if any("TODO" in str(v) for v in L.get("specifics", {}).values()):
         p.append("a specific is still TODO")
-    if L.get("category") not in EBAY_CATEGORIES:
-        p.append(f"category must be one of {list(EBAY_CATEGORIES)}")
+    if category_id(L) is None:
+        p.append(f"category must be one of {list(EBAY_CATEGORIES)} or an eBay category id like \"178893\"")
+    else:
+        # specifics eBay requires in this category that the file doesn't have
+        from lister.ebay import category_aspects
+        have = {k.lower() for k, v in L.get("specifics", {}).items() if str(v).strip()}
+        need = [a["name"] for a in category_aspects(category_id(L))["required"]
+                if a["name"].lower() not in have and a["name"] not in ("UPC", "EAN", "Condition")]
+        if need:
+            p.append(f"category {category_id(L)} requires specifics: {', '.join(need)}")
     if not ITEM_POSTAL_CODE:
         p.append("ITEM_POSTAL_CODE is empty in lister/config.py")
     if not L.get("photos"):
@@ -86,9 +102,9 @@ def main():
 
     days = int(L.get("schedule_days", 0))
     start = (datetime.now(timezone.utc) + timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S.000Z") if days else ""
-    cfg = {"category_id": EBAY_CATEGORIES[L["category"]][0], "postal_code": ITEM_POSTAL_CODE,
+    cfg = {"category_id": category_id(L), "postal_code": ITEM_POSTAL_CODE,
            "policies": EBAY_POLICIES, "shipping": SHIPPING, "returns": RETURNS,
-           "condition_id": CONDITION_ID, "schedule": start}
+           "condition_id": int(L.get("condition_id", CONDITION_ID)), "schedule": start}
 
     print(f"=== {L['title']}")
     urls = upload_photos(folder, L["photos"])

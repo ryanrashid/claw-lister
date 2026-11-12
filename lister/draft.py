@@ -1,8 +1,8 @@
-"""Render one item's draft listing (Markdown for you, JSON for the later eBay-publish step)."""
+"""Per-item outputs: draft.md (research to read), listing.toml (the listing to edit), draft.json (raw)."""
 import json
 from datetime import date
 
-from .config import HOUSE_SPECIFICS, INTRO_LINE, PLATFORM_MARKUP, TITLE_SUFFIX
+from .config import HOUSE_SPECIFICS, INTRO_LINE, INTRO_NOUN, PLATFORM_MARKUP, TITLE_SUFFIX
 from .ebay import barcode_kind
 
 
@@ -26,15 +26,26 @@ def products_row(rec, barcode):
                       rec.get("height", "")])
 
 
+def is_prize(rec):
+    return rec.get("category") in ("Figure", "Plush")
+
+
 def description_text(rec, details):
-    lines = [INTRO_LINE.replace("[release date/rarity]", rec.get("intro_hook") or "[release date/rarity]"),
-             "", BBTS_PLACEHOLDER, ""]
-    lines += [f"- {k}: {v}" for k, v in details]
-    lines += ["- Condition: Brand new, factory sealed"]
+    if is_prize(rec):
+        intro = INTRO_LINE.replace("{noun}", INTRO_NOUN.get(rec.get("category"), "item"))
+        lines = [intro.replace("[release date/rarity]", rec.get("intro_hook") or "[release date/rarity]"),
+                 "", BBTS_PLACEHOLDER, ""]
+        lines += [f"- {k}: {v}" for k, v in details]
+        lines += ["- Condition: Brand new, factory sealed"]
+    else:   # no claw-machine / figurine wording, no BBTS
+        lines = [rec.get("intro_line") or "TODO: opening sentence", "", OTHER_PLACEHOLDER, ""]
+        lines += [f"- {k}: {v}" for k, v in details if k != "Height"]
+        lines += ["- Condition: TODO"]
     return "\n".join(lines)
 
 
 BBTS_PLACEHOLDER = "[paste BBTS description here, or delete this line]"
+OTHER_PLACEHOLDER = "[add details (what's included, condition notes), or delete this line]"
 
 
 def _toml_str(v):
@@ -49,7 +60,8 @@ def listing_toml(photos, title, kind, specifics, description):
            "# Anything marked TODO must be filled in.", "",
            f"title = {_toml_str(title)}   # max 80 characters",
            "price = 0.00            # TODO  USD, eBay price",
-           f"category = {_toml_str(kind)}      # Figure or Plush (ids in lister/config.py)",
+           f"category = {_toml_str(kind)}      # Figure, Plush, or any eBay category id, e.g. \"178893\"",
+           "condition_id = 1000     # 1000 New, 1500 New other (open box), 3000 Used",
            f"schedule_days = {SCHEDULE_DAYS}       # 0 = list right away; otherwise starts this many days out",
            "# listing order; first = main photo",
            "photos = [" + ", ".join(_toml_str(p) for p in photos) + "]", "",
@@ -63,14 +75,15 @@ def listing_toml(photos, title, kind, specifics, description):
 
 
 def render(folder_name, photos, barcode, ebay, rec):
+    house = HOUSE_SPECIFICS if is_prize(rec) else {}   # house values only replace Claude's on prize items
     specifics = {k: v for k, v in (rec.get("item_specifics") or {}).items()
-                 if k not in ("UPC", "EAN", "Condition") and k not in HOUSE_SPECIFICS}
+                 if k not in ("UPC", "EAN", "Condition") and k not in house}
     if barcode:   # one barcode field: UPC for US codes, EAN for JAN/EAN-13
         specifics["UPC" if barcode.startswith("0") else "EAN"] = barcode[1:] if barcode.startswith("0") else barcode
 
     cats = ebay.get("categories") or {}
     chosen = cats.get(rec.get("category")) or cats.get("Figure")
-    if chosen:   # house values, only for fields that exist in this category
+    if chosen and is_prize(rec):   # house values: prize items only, and only fields this category has
         allowed = {a["name"] for k in ("required", "recommended") for a in chosen["aspects"][k]}
         for k, v in HOUSE_SPECIFICS.items():
             if k in allowed or not allowed:
@@ -94,29 +107,44 @@ def render(folder_name, photos, barcode, ebay, rec):
     title = rec.get("ebay_title", "")
     if title and len(title) + len(TITLE_SUFFIX) <= 80:
         title += TITLE_SUFFIX
-    md = [f"# {rec.get('name') or folder_name}", "",
-          f"_Draft generated {date.today():%m/%d/%y} from folder `{folder_name}` · photos: {', '.join(photos)}_", ""]
-    md += warn + ([""] if warn else [])
-    md += ["## eBay title", "", f"`{title}`  ({len(title)}/80)", "",
-           "## Category", "",
-           (f"{chosen['path']} (id {chosen['id']})" if chosen else "—"), ""]
-    md += ["## Item specifics", "", "| Field | Value |", "|---|---|", "| Condition | New |"]
-    md += [f"| {k} | {v} |" for k, v in specifics.items()]
-    md += [f"| {m} | **TODO (required)** |" for m in missing]
-    md += ["", "Shipping: weight **TODO**, package size **TODO**", "",
-           "## Description", "", description_text(rec, details), ""]
-    if rec.get("box_facts"):
-        md += ["**From the box (for you, not the listing):** " + " · ".join(rec["box_facts"]), ""]
-    md += [
-           "## Price", "", "Active listings right now (asking prices, not sold). US sellers are your real competition; abroad totals include international shipping:"]
-    md += price_lines(ebay.get("prices", {}))
-    md += ["", "| Platform | Price |", "|---|---|"]
-    md += [f"| {p} | **TODO**{f' (eBay + ${m:.0f})' if m else ''} |" for p, m in PLATFORM_MARKUP.items()]
-    if rec.get("uncertain"):
-        md += ["", "## Check these", ""] + [f"- {u}" for u in rec["uncertain"]]
-    md += ["", "## Products row (paste into column B)", "", "```", products_row(rec, barcode), "```", ""]
+    toml_specifics = dict(specifics, **{m: "TODO (required by eBay)" for m in missing})
     kind = rec.get("category") if rec.get("category") in cats else "Figure"
-    return "\n".join(md), listing_toml(photos, title, kind, specifics, description_text(rec, details))
+    toml_category = str(chosen["id"]) if kind == "Other" and chosen else kind
+
+    # draft.md = research only. Title/specifics/description live ONLY in listing.toml,
+    # so there's one place to edit and publish.py reads exactly what you edited.
+    md = [f"# {rec.get('name') or folder_name}", "",
+          f"_Research for `{folder_name}`, {date.today():%m/%d/%y}. "
+          "**Edit the listing in `listing.toml`**; this file is read-only notes._", ""]
+    md += warn + ([""] if warn else [])
+    todo = []
+    if missing:
+        todo.append("Required by eBay, not found: " + ", ".join(missing) + " (marked TODO in listing.toml)")
+    todo += list(rec.get("uncertain") or [])
+    if todo:
+        md += ["## Check these", ""] + [f"- {u}" for u in todo] + [""]
+    if rec.get("box_facts"):
+        md += ["## From the box", ""] + [f"- {f}" for f in rec["box_facts"]] + [""]
+    md += ["## Price research", "",
+           "Active listings right now (asking prices, not sold). US sellers are your real competition; "
+           "abroad totals include international shipping:"]
+    md += price_lines(ebay.get("prices", {}))
+    md += ["", "Other platforms: " + ", ".join(
+        f"{p} {'= eBay' if not m else f'= eBay + ${m:.0f}'}" for p, m in PLATFORM_MARKUP.items() if p != "eBay"), ""]
+    md += ["## Category", "", f"{kind}: " + (f"{chosen['path']} (id {chosen['id']})" if chosen else "—")
+           + (f", {chosen['how']}" if chosen and chosen.get("how") else "")]
+    other_votes = [c for c in ebay.get("category_votes") or [] if not chosen or c["id"] != chosen["id"]]
+    if other_votes:
+        md += ["", "Other categories sellers used: " + "; ".join(
+            f"{c['path']} ({c['id']}, {c['listings']})" for c in other_votes[:3])]
+    sim = ebay.get("similar")
+    if sim:
+        md += ["", f"_Exact matches were thin, so specs also drew on {sim['n_listings']} similar listings "
+               f"for \"{sim['query']}\" (any color/version)._"]
+    md += [""]
+    md += ["## Products row (paste into Shop Ledger > Products, column B)", "",
+           "```", products_row(rec, barcode), "```", ""]
+    return "\n".join(md), listing_toml(photos, title, toml_category, toml_specifics, description_text(rec, details))
 
 
 def save(folder, photos, barcode, ebay, rec, overwrite_listing=False):
