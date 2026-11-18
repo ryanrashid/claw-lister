@@ -65,6 +65,25 @@ def problems(L):
     return p
 
 
+def photo_problems(folder, names):
+    """eBay rejects the whole listing if any picture is under 500px on its longest side."""
+    from PIL import Image
+    p = []
+    for n in names:
+        f = folder / n
+        if not f.exists():
+            p.append(f"photo not found: {n}")
+            continue
+        try:
+            with Image.open(f) as im:
+                if max(im.size) < 500:
+                    p.append(f"{n} is {im.size[0]}x{im.size[1]}; eBay needs at least 500px on the longest side "
+                             "(find a bigger version, or remove it from photos)")
+        except Exception as e:
+            p.append(f"can't open {n}: {e}")
+    return p
+
+
 def upload_photos(folder, names):
     """Upload once; reuse the eBay URLs on later runs (cached per file+size+mtime)."""
     cache_f = folder / ".photos.json"
@@ -96,7 +115,7 @@ def main():
     if (folder / "published.json").exists() and "--force" not in sys.argv:
         sys.exit(f"Already listed: {json.loads((folder / 'published.json').read_text())}. Use --force to list again.")
 
-    bad = problems(L)
+    bad = problems(L) + photo_problems(folder, L.get("photos", []))
     if bad:
         sys.exit("Fix these in listing.toml / config first:\n  - " + "\n  - ".join(bad))
 

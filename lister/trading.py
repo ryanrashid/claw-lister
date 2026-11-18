@@ -52,6 +52,25 @@ def call(name, inner_xml):
 MEDIA = "https://apim.ebay.com/commerce/media/v1_beta"
 
 
+def _srgb_icc():
+    from PIL import ImageCms
+    return ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+
+
+def to_srgb(im, icc):
+    """iPhone photos are Display P3. Dropping that profile (what a plain re-save does) makes
+    browsers read the P3 numbers as sRGB: duller, slightly darker colors. Convert instead."""
+    from PIL import ImageCms
+    if icc:
+        try:
+            src = ImageCms.ImageCmsProfile(io.BytesIO(icc))
+            dst = ImageCms.createProfile("sRGB")
+            return ImageCms.profileToProfile(im.convert("RGB"), src, dst, outputMode="RGB")
+        except Exception:
+            pass   # unreadable profile: fall back to the raw pixels
+    return im.convert("RGB")
+
+
 def upload_photo(path):
     """Upload one image file to eBay Picture Services; returns the eBay-hosted URL.
 
@@ -59,11 +78,13 @@ def upload_photo(path):
     (it now 404s). Converted to JPEG first since webp/heic support isn't documented."""
     from PIL import Image, ImageOps
     with Image.open(path) as im:
-        im = ImageOps.exif_transpose(im).convert("RGB")
+        icc = im.info.get("icc_profile")
+        im = ImageOps.exif_transpose(im)
+        im = to_srgb(im, icc)
         if max(im.size) > 3000:
             im.thumbnail((3000, 3000))
         buf = io.BytesIO()
-        im.save(buf, "JPEG", quality=92)
+        im.save(buf, "JPEG", quality=92, icc_profile=_srgb_icc())
     boundary = "----claw" + uuid.uuid4().hex
     body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"{path.stem}.jpg\"\r\n"
             "Content-Type: image/jpeg\r\n\r\n").encode() + buf.getvalue() + f"\r\n--{boundary}--\r\n".encode()

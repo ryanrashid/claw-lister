@@ -45,6 +45,7 @@ HOUSE_SPECIFICS = {
         "Country of Origin": "Japan",
         "Country/Region of Manufacture": "Japan",   # eBay's name for the same field in some categories
         "Packaging": "Original (Unopened)",
+        "Occasion": "All Occasions",
     },
     "Figure": {
         "Convention/Event": "Nor Con",
@@ -53,6 +54,21 @@ HOUSE_SPECIFICS = {
 # Fields Claude should always try to fill (from the box/tag or 2+ listings), even when eBay
 # lists them as optional for the category. Empty if there's no evidence.
 ALSO_FILL = ["Year Manufactured"]
+
+# Time Period Manufactured for Figure/Plush: derived from Year Manufactured when known
+# (eBay's buckets), otherwise this default.
+TIME_PERIOD_DEFAULT = "2020-Now"
+
+
+def time_period(year):
+    try:
+        y = int(str(year).strip()[:4])
+    except (TypeError, ValueError):
+        return TIME_PERIOD_DEFAULT
+    if y >= 2020:
+        return "2020-Now"
+    decade = y // 10 * 10
+    return f"{decade}-{decade + 9}"
 
 
 def house_specifics(kind):

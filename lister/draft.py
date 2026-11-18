@@ -3,7 +3,7 @@ import json
 import re
 from datetime import date
 
-from .config import house_specifics, INTRO_LINE, INTRO_NOUN, PLATFORM_MARKUP, TITLE_SUFFIX
+from .config import house_specifics, time_period, INTRO_LINE, INTRO_NOUN, PLATFORM_MARKUP, TITLE_SUFFIX
 from .ebay import barcode_kind
 
 
@@ -90,6 +90,8 @@ def render(folder_name, photos, barcode, ebay, rec):
         for k, v in house.items():
             if k in allowed or not allowed:
                 specifics[k] = v
+        if "Time Period Manufactured" in allowed or not allowed:   # from the year if known, else default
+            specifics["Time Period Manufactured"] = time_period(specifics.get("Year Manufactured"))
     missing = []
     if chosen:
         names = {k.lower() for k in specifics}

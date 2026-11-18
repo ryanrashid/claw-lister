@@ -32,11 +32,24 @@ def _variants(img):
         yield img.resize((img.width * 2, img.height * 2), Image.LANCZOS)
 
 
+# zxing's default thresholding (LocalAverage) misses some printed barcodes on tinted boxes
+# (e.g. a barcode on a lavender box panel with no white quiet zone); a fixed threshold
+# reads them. Tried in order, stopping at the first that finds a retail code.
+_B = getattr(zxingcpp, "Binarizer", None)
+BINARIZERS = [None] + ([_B.FixedThreshold, _B.GlobalHistogram] if _B else [])
+
+
+def _read(im, binarizer):
+    return zxingcpp.read_barcodes(im) if binarizer is None else zxingcpp.read_barcodes(im, binarizer=binarizer)
+
+
 def codes_in(path):
     found = Counter()
     with Image.open(path) as img:
-        for im in _variants(img):
-            for sym in zxingcpp.read_barcodes(im):
+        variants = list(_variants(img))
+    for binarizer in BINARIZERS:
+        for im in variants:
+            for sym in _read(im, binarizer):
                 code = sym.text.strip()
                 if not (code.isdigit() and len(code) in RETAIL_LENGTHS):
                     continue
@@ -44,7 +57,7 @@ def codes_in(path):
                     code = "0" + code
                 found[code] += 1
             if found:
-                break
+                return list(found)
     return list(found)
 
 
