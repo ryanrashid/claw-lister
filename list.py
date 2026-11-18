@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """list.py — photos in, draft listings out.
 
-Put each item's photos in its own folder inside the inbox (default ~/Listings/inbox):
+Put each item's photos in its own folder inside the inbox (default ~/Listings/inbox).
+Web/stock images of the figure go in a stock/ subfolder: they're added to the listing
+after your photos but never read for the barcode or sent to Claude.
     ~/Listings/inbox/link/IMG_001.jpg ...
     ~/Listings/inbox/hitagi/IMG_010.jpg ...
 Then:
@@ -25,7 +27,9 @@ def process(folder):
     if not photos:
         print("  no photos, skipping")
         return
-    print(f"  {len(photos)} photos")
+    from lister.photos import stock
+    n_stock = len(stock(folder))
+    print(f"  {len(photos)} photos" + (f" (+{n_stock} stock, listing only)" if n_stock else ""))
 
     codes = barcode.scan(folder)
     if len(codes) > 1:

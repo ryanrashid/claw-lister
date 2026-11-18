@@ -64,7 +64,7 @@ def listing_toml(photos, title, kind, specifics, description):
            f"category = {_toml_str(kind)}      # Figure, Plush, or any eBay category id, e.g. \"178893\"",
            "condition_id = 1000     # 1000 New, 1500 New other (open box), 3000 Used",
            f"schedule_days = {SCHEDULE_DAYS}       # 0 = list right away; otherwise starts this many days out",
-           "# listing order; first = main photo",
+           "# listing order; first = main photo. stock/ = web images (put after yours by default)",
            "photos = [" + ", ".join(_toml_str(p) for p in photos) + "]", "",
            "# Plain text. Blank line = new paragraph, '- ' lines = bullet list.",
            "description = '''", description.replace("'''", '"""'), "'''", "",
@@ -154,7 +154,10 @@ def render(folder_name, photos, barcode, ebay, rec):
 
 
 def save(folder, photos, barcode, ebay, rec, overwrite_listing=False):
-    md, toml = render(folder.name, photos, barcode, ebay, rec)
+    """photos = your photos (what Claude saw). The listing gets them plus stock/ images,
+    read from disk now, so stock added later shows up on --render too."""
+    from .photos import stock
+    md, toml = render(folder.name, list(photos) + stock(folder), barcode, ebay, rec)
     (folder / "draft.md").write_text(md)
     lt = folder / "listing.toml"
     if overwrite_listing or not lt.exists():

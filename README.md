@@ -71,6 +71,8 @@ it writes `listing.new.toml` instead), and after publishing `published.json` + `
 
 One folder per item. If a folder has two different barcodes, it warns: split it.
 
+**Stock images** (web photos of the figure out of the box) go in a `stock/` subfolder of the item. They're added to the listing after your own photos, but never read for the barcode or sent to Claude, since they don't show your actual unit. Reorder `photos` in `listing.toml` if you want a different main photo.
+
 How each step works (code, APIs, logic): see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Layout

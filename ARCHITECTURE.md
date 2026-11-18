@@ -10,6 +10,12 @@ photos ─▶ barcode.py ─┬─▶ ebay.gather(gtin) ─▶ claude.clean_up �
 listing.toml (edited) ─▶ publish.py: validate ─▶ Media API photos ─▶ Trading API Verify ─▶ confirm ─▶ AddFixedPriceItem
 ```
 
+## 0. Photos — `lister/photos.py`
+- Top-level images in the item folder are **your photos**: barcode reading, Claude, and the listing.
+- `stock/` images (web photos of the figure) are **listing only**: appended after your photos in
+  `listing.toml` (read from disk at render time, so `--render` picks up stock added later); never
+  barcode-scanned or sent to Claude (they don't show this unit and would cost usage).
+
 ## 1. Barcode — `lister/barcode.py`
 - `zxing-cpp` (pip wheel, native decoder bundled). Pillow opens, applies EXIF rotation, grayscale.
 - Up to three sizes per photo: downscale to 2400px if >3000px, original, and **2× LANCZOS upscale if

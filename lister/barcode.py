@@ -15,7 +15,7 @@ import zxingcpp  # pip wheel with the native reader bundled: no brew/system inst
 # No `formats=` argument: its type changed between zxing-cpp versions (tuple vs flags) and broke
 # on 3.x. Read everything and keep retail codes: all digits, 8/12/13 long.
 RETAIL_LENGTHS = {8, 12, 13}
-IMAGE_EXT = {".jpg", ".jpeg", ".png", ".heic", ".webp"}
+from .photos import IMAGE_EXT, own as _own  # noqa: F401 (IMAGE_EXT kept for callers)
 
 
 def _variants(img):
@@ -49,7 +49,8 @@ def codes_in(path):
 
 
 def images(folder):
-    return sorted(p for p in Path(folder).iterdir() if p.suffix.lower() in IMAGE_EXT)
+    """Your photos only; stock/ images are skipped (see lister/photos.py)."""
+    return _own(folder)
 
 
 def scan(folder):
