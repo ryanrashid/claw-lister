@@ -193,7 +193,7 @@ def _cached_aspects(cid):
     import time
     data = json.loads(ASPECT_CACHE.read_text()) if ASPECT_CACHE.exists() else {}
     hit = data.get(cid)
-    if hit and time.time() - hit["at"] < ASPECT_MAX_AGE:
+    if hit and "optional" in hit["aspects"] and time.time() - hit["at"] < ASPECT_MAX_AGE:
         return hit["aspects"]
     aspects = category_aspects(cid)
     if aspects["required"] or aspects["recommended"]:
@@ -232,17 +232,18 @@ def category_aspects(cat_id):
     """Item specifics eBay wants for a category: required + recommended, with allowed values
     where eBay only accepts its own list."""
     res = get(f"{TREE}/get_item_aspects_for_category", category_id=cat_id)
-    req, rec = [], []
+    req, rec, opt = [], [], []
     for a in res.get("aspects", []):
         c = a.get("aspectConstraint", {})
         if not (c.get("aspectRequired") or c.get("aspectUsage") == "RECOMMENDED"):
+            opt.append(a["localizedAspectName"])   # names only: used to know which house fields exist
             continue
         entry = {"name": a["localizedAspectName"]}
         vals = [v["localizedValue"] for v in a.get("aspectValues", [])]
         if c.get("aspectMode") == "SELECTION_ONLY" and vals:
             entry["allowed"] = vals[:25]
         (req if c.get("aspectRequired") else rec).append(entry)
-    return {"required": req, "recommended": rec}
+    return {"required": req, "recommended": rec, "optional": opt}
 
 
 def gather(code=None, q=None):

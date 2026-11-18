@@ -10,7 +10,7 @@ Then:
     python3 list.py                 # every folder without a draft yet
     python3 list.py path/to/folder  # just these folders
     python3 list.py --redo          # redo the research (barcode, eBay, Claude) for existing drafts too
-    python3 list.py --render        # rebuild draft.md / listing.new.toml from saved draft.json: no eBay, no Claude
+    python3 list.py --render        # rebuild draft.md / listing.new.toml from saved draft.json: no Claude
 
 For each folder: read barcode from the photos (or have Claude read the box) ->
 eBay lookup -> Claude cleans it up against the photos -> writes draft.md + draft.json there.
@@ -70,8 +70,11 @@ def render_only(folder):
         print("  no draft.json yet; run list.py without --render first")
         return
     d = json.loads(saved.read_text())
+    # refresh the fixed Figure/Plush categories (field lists change when config/eBay do);
+    # cached for 30 days, so this is usually no eBay call at all
+    d["ebay"].setdefault("categories", {}).update(ebay.house_categories())
     draft.save(folder, d["photos"], d["barcode"], d["ebay"], d["record"])
-    print(f"  -> re-rendered {folder / 'draft.md'} (no eBay or Claude calls)")
+    print(f"  -> re-rendered {folder / 'draft.md'} (no Claude call)")
 
 
 def main():

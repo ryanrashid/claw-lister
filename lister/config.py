@@ -41,9 +41,29 @@ EBAY_CATEGORIES = {
 # Things you always put, whatever the photos/listings say. These override Claude and eBay data.
 # Add more here as you remember them (aspect name -> value).
 HOUSE_SPECIFICS = {
-    "Country of Origin": "Japan",
-    "Country/Region of Manufacture": "Japan",   # eBay's name for the same field in some categories
+    "Prize": {   # Figure and Plush
+        "Country of Origin": "Japan",
+        "Country/Region of Manufacture": "Japan",   # eBay's name for the same field in some categories
+        "Packaging": "Original (Unopened)",
+    },
+    "Figure": {
+        "Convention/Event": "Nor Con",
+    },
 }
+# Fields Claude should always try to fill (from the box/tag or 2+ listings), even when eBay
+# lists them as optional for the category. Empty if there's no evidence.
+ALSO_FILL = ["Year Manufactured"]
+
+
+def house_specifics(kind):
+    """Your fixed values for a Figure/Plush ({} for anything else)."""
+    if kind not in ("Figure", "Plush"):
+        return {}
+    return {**HOUSE_SPECIFICS.get("Prize", {}), **HOUSE_SPECIFICS.get(kind, {})}
+
+
+def house_keys():
+    return sorted({k for group in HOUSE_SPECIFICS.values() for k in group})
 TITLE_SUFFIX = " (US Seller)"   # appended to every eBay title when it fits in 80 characters
 
 # ---- publishing (publish.py) ----

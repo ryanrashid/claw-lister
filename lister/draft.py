@@ -3,7 +3,7 @@ import json
 import re
 from datetime import date
 
-from .config import HOUSE_SPECIFICS, INTRO_LINE, INTRO_NOUN, PLATFORM_MARKUP, TITLE_SUFFIX
+from .config import house_specifics, INTRO_LINE, INTRO_NOUN, PLATFORM_MARKUP, TITLE_SUFFIX
 from .ebay import barcode_kind
 
 
@@ -76,7 +76,7 @@ def listing_toml(photos, title, kind, specifics, description):
 
 
 def render(folder_name, photos, barcode, ebay, rec):
-    house = HOUSE_SPECIFICS if is_prize(rec) else {}   # house values only replace Claude's on prize items
+    house = house_specifics(rec.get("category"))   # {} unless Figure/Plush; these replace Claude's values
     specifics = {k: v for k, v in (rec.get("item_specifics") or {}).items()
                  if k not in ("UPC", "EAN", "Condition") and k not in house}
     if barcode:   # one barcode field: UPC for US codes, EAN for JAN/EAN-13
@@ -84,9 +84,10 @@ def render(folder_name, photos, barcode, ebay, rec):
 
     cats = ebay.get("categories") or {}
     chosen = cats.get(rec.get("category")) or cats.get("Figure")
-    if chosen and is_prize(rec):   # house values: prize items only, and only fields this category has
-        allowed = {a["name"] for k in ("required", "recommended") for a in chosen["aspects"][k]}
-        for k, v in HOUSE_SPECIFICS.items():
+    if chosen and house:   # only fields this category actually has (required, recommended or optional)
+        a = chosen["aspects"]
+        allowed = {x["name"] for k in ("required", "recommended") for x in a[k]} | set(a.get("optional", []))
+        for k, v in house.items():
             if k in allowed or not allowed:
                 specifics[k] = v
     missing = []

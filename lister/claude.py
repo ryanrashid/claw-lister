@@ -130,8 +130,12 @@ Reply with ONLY a JSON object:
 
 def clean_up(photo_names, barcode, ebay, name_rule, cwd):
     """Turn noisy eBay data + photos into one consistent product record and eBay fields."""
-    from .config import HOUSE_SPECIFICS, TITLE_SUFFIX
-    house_keys = ", ".join(HOUSE_SPECIFICS)
+    from .config import ALSO_FILL, TITLE_SUFFIX, house_keys as _hk
+    house_keys = ", ".join(_hk())
+    also_fill = ", ".join(ALSO_FILL)
+    # Claude gets required/recommended aspects only; the optional-name list is for house fields
+    cats_for_claude = {k: {**v, "aspects": {x: y for x, y in v["aspects"].items() if x != "optional"}}
+                       for k, v in (ebay.get("categories") or {}).items()}
     title_max = 80 - len(TITLE_SUFFIX)
     evidence = {k: ebay.get(k) for k in ("n_listings", "titles", "aspect_votes", "aspect_votes_other_sites")}
     similar = ebay.get("similar")
@@ -152,7 +156,7 @@ SIMILAR LISTINGS (same brand+model, any variant/color; only searched when exact 
 CATEGORIES by item type, each with the item specifics eBay requires/recommends there
 ("allowed" = eBay only accepts those values). "Figure" and "Plush" are fixed; "Other" is the category
 ebay.com sellers used for this item (or eBay's suggestion):
-{json.dumps(ebay.get("categories", {}), ensure_ascii=False, indent=1)}
+{json.dumps(cats_for_claude, ensure_ascii=False, indent=1)}
 
 Rules:
 - The photos are the ground truth. If the exact matches describe a different item or variant, say so in "match_note" and set "matches_photos" to false.
@@ -161,7 +165,7 @@ Rules:
 - Identity and variant come ONLY from the photos and the exact matches. Similar listings may be a different color/version: use them only for model-level specs (size, material, connectivity, compatibility...).
 - ebay_title: max {title_max} characters (a suffix gets added after it), buyer search terms first (franchise, character, line, maker, "Figure"/"Plush"; or brand, model, color, type for Other), then "New" / "Japan" / "Authentic" if room and true. No emojis, no all caps words except brand names. Keep product-line names as printed, including symbols (write "FIGURIZMα", not "FIGURIZM Alpha").
 - Don't flag Country of Origin / manufacture location in "uncertain" for Figure/Plush; the owner sets it.
-- item_specifics: use exactly the aspect names of the category you chose; fill every required one and as many recommended ones as the evidence supports, in English; for "allowed" aspects use one of the listed values. A value needs one of: the photos/box/tag, 2+ listings agreeing, or (for model-level specs only) 1 listing that plainly describes this same model and isn't contradicted. Don't include UPC/EAN or Condition{", or these fields the owner sets himself for Figure/Plush: " + house_keys if house_keys else ""}.
+- item_specifics: use exactly the aspect names of the category you chose; fill every required one and as many recommended ones as the evidence supports, in English; also fill {also_fill} when there's evidence (e.g. a manufacture date on the box, or 2+ listings agreeing), else leave it out; for "allowed" aspects use one of the listed values. A value needs one of: the photos/box/tag, 2+ listings agreeing, or (for model-level specs only) 1 listing that plainly describes this same model and isn't contradicted. Don't include UPC/EAN or Condition{", or these fields the owner sets himself for Figure/Plush: " + house_keys if house_keys else ""}.
 - intro_hook (Figure/Plush only): a short phrase that completes "This figurine/plush is ___ so get it here now!" using only facts from the box or listings (e.g. "a 2025 FuRyu prize exclusive, one version only"). Empty if nothing true and interesting.
 - intro_line (Other only): one plain, factual opening sentence for the description (what it is, condition, what's included). No claw-machine wording.
 - Buyer-facing text (name, ebay_title, intro_hook, intro_line, item_specifics values) must be in English: romanize Japanese names (e.g. 黒星紅白 -> Kuroboshi Kouhaku), never paste Japanese characters there. Japanese is fine in box_facts.
