@@ -71,6 +71,8 @@ it writes `listing.new.toml` instead), and after publishing `published.json` + `
 
 One folder per item. If a folder has two different barcodes, it warns: split it.
 
+**Lots:** name the folder with a `-lot` ending (e.g. `dandadan-keychains-lot`) to make ONE listing for several items that each have their own barcode. Every barcode is looked up; `draft.md` shows each item's prices, the sum of singles, and comparable lots, so you can decide lot vs. singles; it prints one Products row per item.
+
 **Stock images** (web photos of the figure out of the box) go in a `stock/` subfolder of the item. They're added to the listing after your own photos, but never read for the barcode or sent to Claude, since they don't show your actual unit. Reorder `photos` in `listing.toml` if you want a different main photo.
 
 How each step works (code, APIs, logic): see [ARCHITECTURE.md](ARCHITECTURE.md).

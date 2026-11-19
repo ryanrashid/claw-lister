@@ -115,6 +115,15 @@ listing.toml (edited) ─▶ publish.py: validate ─▶ Media API photos ─▶
 - Scheduled listings sit under Seller Hub > Scheduled; editable, and the schedule can be removed to go
   live. This is the de-facto draft (real drafts need the limited-release Sell Listing API).
 
+## Lot mode (`*-lot` folders)
+- Explicit by folder name so a stray background barcode can't turn a single item into a lot.
+- `ebay.gather_lot`: one `gather()` per barcode; "Other" category = most common across all items'
+  ebay.com listings. `claude.clean_up_lot`: one call maps barcodes to items in the photos, writes one
+  title/specifics for the whole lot, and a `lot_search_query`; `ebay.lot_comps` then searches comparable
+  lots (lot titles kept, unlike `search()`).
+- draft: no single UPC/EAN field; description lists the lot contents; price research = per-item table
+  (US median, anywhere median), sum of singles, comparable lots; one Products row per item.
+
 ## Learned by running it
 1092px photos need upscaling · keyword search on the number mixes variants · Taxonomy category
 suggestions are unreliable · `UploadSiteHostedPictures` 404s · `OriginatingPostalCode` is rejected ·

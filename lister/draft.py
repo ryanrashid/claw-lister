@@ -19,6 +19,46 @@ def price_lines(prices):
     return out
 
 
+def _median_new(prices, us_only):
+    """(n, low, median) for new listings, US sellers only or any location."""
+    keys = ["New, ships from US"] if us_only else ["New, ships from US", "New, ships from abroad"]
+    tot = [c for k in keys for c in [prices.get(k)] if c]
+    if not tot:
+        return None
+    n = sum(c["n"] for c in tot)
+    low = min(c["low"] for c in tot)
+    med = tot[0]["median"] if len(tot) == 1 else round(sum(c["median"] * c["n"] for c in tot) / n, 2)
+    return n, low, med
+
+
+def lot_price_lines(ebay, rec):
+    """Per-item table, sum of singles, and comparable lots."""
+    out = ["", "| Item | Barcode | New, US sellers (n · low · median) | New, anywhere (n · median) |", "|---|---|---|---|"]
+    sum_us, sum_any, complete_us = 0.0, 0.0, True
+    names = {i.get("barcode"): i.get("name") for i in (rec.get("items") or [])}
+    for info in ebay["lot"]:
+        us, anyw = _median_new(info["prices"], True), _median_new(info["prices"], False)
+        label = names.get(info["barcode"]) or (info["titles"][0][:45] if info["titles"] else "?")
+        out.append(f"| {label} | {info['barcode']} | "
+                   + (f"{us[0]} · ${us[1]:.2f} · ${us[2]:.2f}" if us else "none")
+                   + " | " + (f"{anyw[0]} · ${anyw[2]:.2f}" if anyw else "none") + " |")
+        if us:
+            sum_us += us[2]
+        else:
+            complete_us = False
+        if anyw:
+            sum_any += anyw[2]
+    out.append(f"| **Sum of singles** | | **${sum_us:.2f}**" + ("" if complete_us else " (some items have no US listings)")
+               + f" | ${sum_any:.2f} |")
+    comps = ebay.get("lot_comps")
+    if comps:
+        out += ["", f"Comparable lots for \"{comps['query']}\" ({comps['n_listings']} found):"]
+        out += price_lines(comps.get("prices", {}))
+    out += ["", "_Singles each pay their own shipping (~$5-6 each, buyer-paid); a lot pays it once. "
+            "If one item's median is far above the rest, consider selling it alone and lotting the others._"]
+    return out
+
+
 def products_row(rec, barcode):
     """Products columns B..K (stop before the auto columns M/N)."""
     return "\t".join([rec.get("name", ""), rec.get("category", ""), rec.get("franchise", ""),
@@ -31,15 +71,24 @@ def is_prize(rec):
     return rec.get("category") in ("Figure", "Plush")
 
 
+def lot_lines(rec):
+    items = rec.get("items") or []
+    if not items:
+        return []
+    return [f"This lot includes {len(items)} items:"] + [f"- {i.get('name') or i.get('barcode')}" for i in items] + [""]
+
+
 def description_text(rec, details):
-    if is_prize(rec):
-        intro = INTRO_LINE.replace("{noun}", INTRO_NOUN.get(rec.get("category"), "item"))
+    lot = bool(rec.get("items"))
+    if is_prize(rec) or (lot and rec.get("intro_hook")):
+        noun = "lot" if lot else INTRO_NOUN.get(rec.get("category"), "item")
+        intro = INTRO_LINE.replace("{noun}", noun)
         lines = [intro.replace("[release date/rarity]", rec.get("intro_hook") or "[release date/rarity]"),
-                 "", BBTS_PLACEHOLDER, ""]
+                 ""] + lot_lines(rec) + [BBTS_PLACEHOLDER, ""]
         lines += [f"- {k}: {v}" for k, v in details]
         lines += ["- Condition: Brand new, factory sealed"]
     else:   # no claw-machine / figurine wording, no BBTS
-        lines = [rec.get("intro_line") or "TODO: opening sentence", "", OTHER_PLACEHOLDER, ""]
+        lines = [rec.get("intro_line") or "TODO: opening sentence", ""] + lot_lines(rec) + [OTHER_PLACEHOLDER, ""]
         lines += [f"- {k}: {v}" for k, v in details if k != "Height"]
         lines += ["- Condition: TODO"]
     return "\n".join(lines)
@@ -79,7 +128,8 @@ def render(folder_name, photos, barcode, ebay, rec):
     house = house_specifics(rec.get("category"))   # {} unless Figure/Plush; these replace Claude's values
     specifics = {k: v for k, v in (rec.get("item_specifics") or {}).items()
                  if k not in ("UPC", "EAN", "Condition") and k not in house}
-    if barcode:   # one barcode field: UPC for US codes, EAN for JAN/EAN-13
+    lot = ebay.get("lot")   # lot mode: list of per-barcode research
+    if barcode and not lot:   # one barcode field: UPC for US codes, EAN for JAN/EAN-13
         specifics["UPC" if barcode.startswith("0") else "EAN"] = barcode[1:] if barcode.startswith("0") else barcode
 
     cats = ebay.get("categories") or {}
@@ -97,7 +147,8 @@ def render(folder_name, photos, barcode, ebay, rec):
         names = {k.lower() for k in specifics}
         missing = [a["name"] for a in chosen["aspects"]["required"]
                    if a["name"].lower() not in names and a["name"] not in ("UPC", "EAN", "Condition")]
-    details = [(k, v) for k, v in (("Maker", rec.get("maker")), ("Line", rec.get("line")),
+    details = [(k, v) for k, v in (("Maker", rec.get("maker")), ("Line", rec.get("line")))
+               if v] if lot else [(k, v) for k, v in (("Maker", rec.get("maker")), ("Line", rec.get("line")),
                                    ("Character", rec.get("character")), ("Version", rec.get("variant")),
                                    ("Height", rec.get("height") or "TODO"),
                                    ("Material", specifics.get("Material", ""))) if v]
@@ -137,7 +188,7 @@ def render(folder_name, photos, barcode, ebay, rec):
     md += ["## Price research", "",
            "Active listings right now (asking prices, not sold). US sellers are your real competition; "
            "abroad totals include international shipping:"]
-    md += price_lines(ebay.get("prices", {}))
+    md += lot_price_lines(ebay, rec) if lot else price_lines(ebay.get("prices", {}))
     md += ["", "Other platforms: " + ", ".join(
         f"{p} {'= eBay' if not m else f'= eBay + ${m:.0f}'}" for p, m in PLATFORM_MARKUP.items() if p != "eBay"), ""]
     md += ["## Category", "", f"{kind}: " + (f"{chosen['path']} (id {chosen['id']})" if chosen else "—")
@@ -152,7 +203,8 @@ def render(folder_name, photos, barcode, ebay, rec):
                f"for \"{sim['query']}\" (any color/version)._"]
     md += [""]
     md += ["## Products row (paste into Shop Ledger > Products, column B)", "",
-           "```", products_row(rec, barcode), "```", ""]
+           "```"] + ([products_row({**rec, **i, "category": rec.get("category")}, i.get("barcode", ""))
+                      for i in rec.get("items") or []] if lot else [products_row(rec, barcode)]) + ["```", ""]
     return "\n".join(md), listing_toml(photos, title, toml_category, toml_specifics, description_text(rec, details))
 
 

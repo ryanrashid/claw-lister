@@ -182,3 +182,51 @@ Reply with ONLY a JSON object:
   "item_specifics": {{}},
   "uncertain": []}}"""
     return ask_json(prompt, photo_names, cwd, "clean_up")
+
+
+def clean_up_lot(photo_names, lot, name_rule, cwd):
+    """Lot mode: several items (each with its own barcode) sold as one listing."""
+    from .config import ALSO_FILL, TITLE_SUFFIX, house_keys as _hk
+    title_max = 80 - len(TITLE_SUFFIX)
+    per_item = [{"barcode": i["barcode"], "n_listings": i["n_listings"], "titles": i["titles"][:8],
+                 "aspect_votes": i["aspect_votes"], "aspect_votes_other_sites": i["aspect_votes_other_sites"]}
+                for i in lot["lot"]]
+    cats_for_claude = {k: {**v, "aspects": {x: y for x, y in v["aspects"].items() if x != "optional"}}
+                       for k, v in (lot.get("categories") or {}).items()}
+    prompt = f"""You are preparing ONE eBay listing for a LOT: several items sold together. Usually they are new,
+unopened Japanese prize items (figures, plush, keychains, acrylic stands) won from claw machines.
+{PHOTOS}
+
+Each item in the photos has its own barcode. For each barcode, here are the active eBay listings found
+(titles; item-specific values with how many listings gave each; "other_sites" are non-English eBay sites,
+translate them):
+{json.dumps(per_item, ensure_ascii=False, indent=1)}
+
+CATEGORIES by item type, each with the item specifics eBay requires/recommends there ("allowed" = eBay
+only accepts those values). Pick the one that fits the lot as a whole:
+{json.dumps(cats_for_claude, ensure_ascii=False, indent=1)}
+
+Rules:
+- The photos are the ground truth. Match each barcode to the item it belongs to in the photos. If a
+  barcode's listings describe something not in the photos, say so in "uncertain" and set matches_photos false.
+- items: one entry per barcode, in the same order, with a short buyer-friendly name in English
+  (e.g. "Okarun keychain"), plus character / variant / line / maker / franchise when known.
+- category: "Figure" or "Plush" if every item is that, otherwise "Other".
+- name: "<Franchise> <Line or item type> Lot of <N>" (e.g. "Dandadan Rubber Keychain Lot of 3").
+- ebay_title: max {title_max} characters. Lead with franchise, item type, "Lot of N" / "Set of N", then the
+  characters' names as far as they fit, then maker. No emojis; romanize Japanese.
+- item_specifics: aspect names of the category you chose, values true for the WHOLE lot (Brand/Franchise
+  if shared; Character only if one; Type = item type). Also fill {", ".join(ALSO_FILL)} if all items agree.
+  Skip UPC/EAN, Condition, and these owner-set fields: {", ".join(_hk())}.
+- intro_hook (Figure/Plush lots) completes "This lot is ___ so get it here now!" from box facts; intro_line
+  (Other lots) is one plain factual opening sentence. English only.
+- lot_search_query: an eBay search for comparable lots of this kind of item (e.g. "dandadan keychain lot").
+- box_facts / uncertain as usual. Buyer-facing text in English only.
+
+Reply with ONLY a JSON object:
+{{"matches_photos": true, "match_note": "", "category": "Figure|Plush|Other",
+  "name": "", "franchise": "", "line": "", "maker": "",
+  "items": [{{"barcode": "", "name": "", "character": "", "variant": "", "line": "", "maker": "", "franchise": ""}}],
+  "ebay_title": "", "item_specifics": {{}}, "intro_hook": "", "intro_line": "",
+  "lot_search_query": "", "box_facts": [], "uncertain": []}}"""
+    return ask_json(prompt, photo_names, cwd, "clean_up_lot")

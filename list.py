@@ -2,6 +2,8 @@
 """list.py — photos in, draft listings out.
 
 Put each item's photos in its own folder inside the inbox (default ~/Listings/inbox).
+A folder whose name ends in -lot (e.g. dandadan-keychains-lot) is ONE listing for several items,
+each with its own barcode: every barcode is looked up and the draft prices singles vs. the lot.
 Web/stock images of the figure go in a stock/ subfolder: they're added to the listing
 after your photos but never read for the barcode or sent to Claude.
     ~/Listings/inbox/link/IMG_001.jpg ...
@@ -31,10 +33,13 @@ def process(folder):
     n_stock = len(stock(folder))
     print(f"  {len(photos)} photos" + (f" (+{n_stock} stock, listing only)" if n_stock else ""))
 
+    if folder.name.lower().endswith(LOT_SUFFIX):
+        return process_lot(folder, photos)
+
     codes = barcode.scan(folder)
     if len(codes) > 1:
-        print(f"  ! several barcodes {list(codes)} — using the one seen in most photos; "
-              "split the folder if these are different items")
+        print(f"  ! several barcodes {list(codes)} — using the one seen in most photos. "
+              f"If this is a lot, rename the folder to end in '{LOT_SUFFIX}'; if they're separate items, split it.")
     code = max(codes, key=lambda c: len(codes[c])) if codes else ""
 
     query = None
@@ -59,6 +64,31 @@ def process(folder):
     draft.save(folder, photos, code, info, rec)
     flag = "" if rec.get("matches_photos", True) else "   ⚠ eBay matches may be a different item"
     print(f"  -> {rec.get('name')}{flag}")
+    print(f"  -> {folder / 'draft.md'}")
+
+
+LOT_SUFFIX = "-lot"
+
+
+def process_lot(folder, photos):
+    """Folder name ends in -lot: several items, each with its own barcode, sold as one listing."""
+    codes = list(barcode.scan(folder))
+    if len(codes) < 2:
+        print(f"  ! lot mode needs 2+ barcodes in the photos; found {codes or 'none'}. "
+              "Take a photo where each item's barcode is visible, or list the items separately.")
+        return
+    print(f"  lot of {len(codes)}: {', '.join(codes)}")
+    lot = ebay.gather_lot(codes)
+    for info in lot["lot"]:
+        print(f"    {info['barcode']}: {info['n_listings']} listings ({info['n_us']} US)")
+    print("  Claude: matching barcodes to the items and writing one lot listing")
+    rec = claude.clean_up_lot(photos, lot, NAME_RULE, cwd=folder)
+    q = rec.get("lot_search_query")
+    lot["lot_comps"] = ebay.lot_comps(q)
+    if lot["lot_comps"]:
+        print(f"  comparable lots for \"{q}\": {lot['lot_comps']['n_listings']}")
+    draft.save(folder, photos, "", lot, rec)
+    print(f"  -> {rec.get('name')}")
     print(f"  -> {folder / 'draft.md'}")
 
 

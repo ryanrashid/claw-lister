@@ -320,6 +320,53 @@ def gather(code=None, q=None):
     }
 
 
+def gather_lot(codes):
+    """Lot mode: one gather() per barcode, plus a category for the lot as a whole.
+
+    Each item keeps its own titles/specifics/prices. "Other" category = most common category
+    across all items' ebay.com listings."""
+    items = []
+    for c in codes:
+        info = gather(code=c)
+        info["barcode"] = c
+        items.append(info)
+    cats = {k: dict(v) for k, v in house_categories().items()}
+    votes = Counter()
+    paths = {}
+    for info in items:
+        for cv in info.get("category_votes") or []:
+            votes[cv["id"]] += cv["listings"]
+            paths[cv["id"]] = cv["path"]
+    if votes:
+        oid, n = votes.most_common(1)[0]
+        cats["Other"] = {"id": oid, "path": paths[oid], "how": f"used by {n} ebay.com listing(s) across the lot",
+                         "aspects": aspects_cached(oid)}
+    else:   # fall back to whatever the first item's gather picked
+        other = next((i["categories"].get("Other") for i in items if i["categories"].get("Other")), None)
+        if other:
+            cats["Other"] = other
+    return {
+        "lot": items,
+        "n_listings": sum(i["n_listings"] for i in items),
+        "n_us": sum(i["n_us"] for i in items),
+        "categories": cats,
+        "category_votes": [{"id": i, "path": paths[i], "listings": n} for i, n in votes.most_common()],
+    }
+
+
+def lot_comps(query):
+    """Comparable lots/bundles: a keyword search where lot titles are the point (search()
+    drops them, so this calls the API directly)."""
+    if not query:
+        return None
+    res = get("/buy/browse/v1/item_summary/search", q=query, limit=50,
+              filter="buyingOptions:{FIXED_PRICE|AUCTION}")
+    found = res.get("itemSummaries", [])
+    lots = [it for it in found if LOT_WORDS.search(it.get("title", "")) or re.search(r"\b(\d+|two|three|four|five)\s*(pc|pcs|piece|keychains?|figures?|set)\b", it.get("title", ""), re.I)]
+    return {"query": query, "n_listings": len(lots), "titles": [it["title"] for it in lots[:10]],
+            "prices": prices(lots)}
+
+
 def barcode_kind(code):
     if len(code) == 13 and code[:2] in ("45", "49"):
         return "JAN"
